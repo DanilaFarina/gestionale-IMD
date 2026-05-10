@@ -832,15 +832,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     )}
                   </div>
                 </div>
-
-                {/* Sconto Finale */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Sconto Finale (€)</label>
-                  <div className="relative w-full md:w-1/3">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">-</div>
-                    <input type="number" name="sconto" min="0" value={formData.sconto} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-red-600 font-medium" />
-                  </div>
-                </div>
               </div>
             </div>
 
