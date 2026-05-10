@@ -257,7 +257,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   const defaults = {
     client: '',
     date: '',
-    location: '',
+    address: '',
     type: 'Matrimonio',
     band: '',
     numMomenti: 1,
@@ -380,15 +380,15 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   // Debounce: ricalcola quando cambia la location
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (formData.location) {
-        calcolaDistanza(formData.location);
+      if (formData.address) {
+        calcolaDistanza(formData.address);
       } else {
         setFormData(prev => ({ ...prev, distanzaKm: 0 }));
         setDistanzaError('');
       }
     }, 1200);
     return () => clearTimeout(timer);
-  }, [formData.location, calcolaDistanza]);
+  }, [formData.address, calcolaDistanza]);
 
   // Calcoli in tempo reale (Il "Riepilogo Interno" / Excel)
   const calc = useMemo(() => {
@@ -464,7 +464,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       client: formData.client || 'Cliente Sconosciuto',
       type: formData.type,
       date: formData.date || 'Da definire',
-      location: formData.location || 'Da definire',
+      location: formData.address || 'Da definire',
       band: `${getFormazioneName(formData.numMusicisti)}${formData.band ? ' — ' + formData.band : ''}`,
       total: calc.totaleFinale,
       status: formData._editStatus || 'In attesa',
@@ -613,7 +613,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
               <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-blue-800">
-                    Distanza da Firenze → {formData.location || '...'}
+                    Distanza da Firenze → {formData.address || '...'}
                   </span>
                   {distanzaLoading && (
                     <span className="text-xs text-blue-600 animate-pulse">Calcolo in corso...</span>
