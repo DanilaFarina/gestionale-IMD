@@ -252,9 +252,9 @@ const getFormazioneName = (n) => {
   return nomi[n] || `Ensemble (${n} musicisti)`;
 };
 
-function QuoteForm({ onCancel, onSave }) {
+function QuoteForm({ onCancel, onSave, initialData }) {
   // Stato del form
-  const [formData, setFormData] = useState({
+  const defaults = {
     client: '',
     date: '',
     location: '',
@@ -293,7 +293,8 @@ function QuoteForm({ onCancel, onSave }) {
     usaMaggAgenzia: false,
     percMaggAgenzia: 10,
     sconto: 0
-  });
+  };
+  const [formData, setFormData] = useState(initialData ? { ...defaults, ...initialData } : defaults);
 
   const [distanzaLoading, setDistanzaLoading] = useState(false);
   const [distanzaError, setDistanzaError] = useState('');
@@ -459,14 +460,15 @@ function QuoteForm({ onCancel, onSave }) {
     if(!formData.client) return alert("Inserisci almeno il nome del cliente!");
 
     const newQuote = {
-      id: `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+      id: formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
       client: formData.client || 'Cliente Sconosciuto',
       type: formData.type,
       date: formData.date || 'Da definire',
       location: formData.location || 'Da definire',
       band: `${getFormazioneName(formData.numMusicisti)}${formData.band ? ' — ' + formData.band : ''}`,
       total: calc.totaleFinale,
-      status: 'In attesa'
+      status: formData._editStatus || 'In attesa',
+      formData: { ...formData }
     };
     onSave(newQuote);
   };
@@ -483,7 +485,7 @@ function QuoteForm({ onCancel, onSave }) {
           <ArrowLeft size={24} className="text-slate-600" />
         </button>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Componi Preventivo</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">{initialData ? 'Modifica Preventivo' : 'Componi Preventivo'}</h2>
           <p className="text-slate-500 text-sm">Inserisci i parametri. Il calcolo si aggiorna in tempo reale.</p>
         </div>
       </div>
@@ -1118,12 +1120,24 @@ export default function App() {
   };
 
   const handleEdit = (id) => {
-    alert(`Modifica in arrivo per il preventivo: ${id}\nPer ora ho concentrato lo sforzo sulla pagina di creazione.`);
+    const quote = quotes.find(q => q.id === id);
+    if (quote?.formData) {
+      setSelectedQuote(quote);
+      setCurrentView('edit');
+    } else {
+      alert('Dati del form non disponibili per questo preventivo.');
+    }
   };
 
   const handleSaveNewQuote = (newQuote) => {
     setQuotes([...quotes, newQuote]);
-    setCurrentView('dashboard'); // Torna alla home
+    setCurrentView('dashboard');
+  };
+
+  const handleUpdateQuote = (updatedQuote) => {
+    setQuotes(quotes.map(q => q.id === updatedQuote.id ? updatedQuote : q));
+    setSelectedQuote(null);
+    setCurrentView('dashboard');
   };
 
   const handlePrint = (quote) => {
@@ -1150,6 +1164,15 @@ export default function App() {
               setCurrentView('dashboard');
               setSelectedQuote(null);
             }} 
+          />
+        ) : currentView === 'edit' && selectedQuote?.formData ? (
+          <QuoteForm 
+            onCancel={() => {
+              setCurrentView('dashboard');
+              setSelectedQuote(null);
+            }}
+            onSave={handleUpdateQuote}
+            initialData={{ ...selectedQuote.formData, _editId: selectedQuote.id, _editStatus: selectedQuote.status }}
           />
         ) : (
           <QuoteForm 
