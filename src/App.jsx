@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas-pro';
 import logoIMD from './assets/logo-imd.svg';
 import { 
   Plus, 
@@ -978,112 +980,224 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 // ==========================================
 function PrintView({ quote, onBack }) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const fd = quote.formData || {};
 
-  const handleDownloadPdf = () => {
-    setIsGenerating(true);
-    const element = document.getElementById('preventivo-container');
-    const opt = {
-      margin:       10,
-      filename:     `Preventivo_${quote.id}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+  // Calcolo prezzi finali
+  const prezzoFatturato = Math.round(quote.total / 0.6);
+  const scontoperTe = Math.round(prezzoFatturato * 0.8);
 
-    // Carica dinamicamente la libreria se non è già presente
-    if (window.html2pdf) {
-      window.html2pdf().set(opt).from(element).save().then(() => setIsGenerating(false));
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-      script.onload = () => {
-        window.html2pdf().set(opt).from(element).save().then(() => setIsGenerating(false));
+  // Costruisci lista servizi dinamica dal formData
+  const servizi = [];
+
+  servizi.push({
+    titolo: `Formazione musicale — ${quote.band}`,
+    desc: `${fd.numMusicisti || 3} musicisti professionisti per intrattenimento musicale dal vivo`
+  });
+
+  if (fd.numMomenti > 1) {
+    servizi.push({
+      titolo: `${fd.numMomenti} momenti musicali`,
+      desc: 'Set musicali suddivisi in base alla scaletta dell\'evento'
+    });
+  }
+
+  if (fd.numPostazioni > 1) {
+    servizi.push({
+      titolo: `${fd.numPostazioni} postazioni`,
+      desc: 'Setup audio e strumentazione in più punti della location'
+    });
+  }
+
+  servizi.push({
+    titolo: `Impianto audio professionale${fd.numImpianti > 1 ? ` (×${fd.numImpianti})` : ''}`,
+    desc: 'Amplificazione, mixer, casse e microfonazione completa'
+  });
+
+  if (Number(fd.costoDj) > 0) {
+    servizi.push({
+      titolo: 'DJ Set',
+      desc: 'Servizio DJ con consolle e playlist personalizzata'
+    });
+  }
+
+  if (fd.usaBraniRichiesta) {
+    servizi.push({
+      titolo: 'Brani su richiesta',
+      desc: 'Studio e preparazione di brani specifici richiesti dal cliente'
+    });
+  }
+
+  if (fd.usaCoordinator) {
+    servizi.push({
+      titolo: 'Event Coordinator',
+      desc: 'Coordinamento e gestione della parte musicale durante l\'evento'
+    });
+  }
+
+  if (fd.distanzaKm > 0) {
+    servizi.push({
+      titolo: 'Trasferta inclusa',
+      desc: `Spostamento da Firenze a ${fd.address || quote.location} (${fd.distanzaKm} km)`
+    });
+  }
+
+  if (fd.usaPernottamento) {
+    servizi.push({
+      titolo: `Pernottamento${fd.numNotti > 1 ? ` (${fd.numNotti} notti)` : ''}`,
+      desc: 'Alloggio per i musicisti incluso nel pacchetto'
+    });
+  }
+
+  // Converti SVG logo in PNG data URL per html2canvas
+  const svgToPngDataUrl = (svgUrl) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        // Usa le proporzioni reali del logo (1774x1183)
+        const width = 1774;
+        const height = 1183;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/png'));
       };
-      document.body.appendChild(script);
+      img.onerror = () => resolve('');
+      img.src = svgUrl;
+    });
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsGenerating(true);
+    try {
+      // Converti il logo SVG in PNG nel clone per html2canvas
+      const element = document.getElementById('preventivo-container');
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        onclone: async (clonedDoc) => {
+          const logoEl = clonedDoc.querySelector('#preventivo-container img');
+          if (logoEl) {
+            const pngDataUrl = await svgToPngDataUrl(logoEl.src);
+            if (pngDataUrl) logoEl.src = pngDataUrl;
+          }
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const imgWidth = pageWidth - margin * 2;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (imgHeight > pageHeight - margin * 2) {
+        const scale = (pageHeight - margin * 2) / imgHeight;
+        const scaledWidth = imgWidth * scale;
+        const scaledHeight = imgHeight * scale;
+        const xOffset = (pageWidth - scaledWidth) / 2;
+        pdf.addImage(imgData, 'JPEG', xOffset, margin, scaledWidth, scaledHeight);
+      } else {
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
+      }
+
+      pdf.save(`Preventivo_${quote.id}.pdf`);
+    } catch (err) {
+      console.error('Errore generazione PDF:', err);
+      alert('Errore nella generazione del PDF: ' + err.message);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8 flex flex-col items-center animate-in fade-in">
+    <div className="min-h-screen bg-stone-100 p-4 md:p-8 flex flex-col items-center animate-in fade-in">
       
       {/* Bottoni di controllo esterni al PDF */}
       <div className="max-w-3xl w-full flex justify-end gap-3 mb-4">
-        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-slate-800 rounded-lg transition-colors font-medium shadow-sm">
+        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-800 rounded-lg transition-colors font-medium shadow-sm">
           <ArrowLeft size={18} /> Chiudi
         </button>
         <button 
           onClick={handleDownloadPdf} 
           disabled={isGenerating}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
+          className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
         >
           <Printer size={18} /> {isGenerating ? 'Generazione...' : 'Scarica PDF'}
         </button>
       </div>
 
-      <div id="preventivo-container" className="max-w-3xl w-full bg-white shadow-xl border border-gray-200 p-10 md:p-16 rounded-xl">
+      <div id="preventivo-container" className="max-w-3xl w-full bg-white shadow-xl p-10 md:p-16" style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
         
-        {/* Intestazione Preventivo */}
-        <div className="flex justify-between items-start border-b border-gray-200 pb-8 mb-8">
-          <div>
-            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">PREVENTIVO</h1>
-            <p className="text-slate-500 mt-2 font-mono">{quote.id}</p>
-          </div>
-          <div className="text-right">
-            <img src={logoIMD} alt="IMD Logo" className="h-24 w-auto ml-auto mb-3" />
-            <h2 className="text-xl font-bold text-slate-800">Italian Music Designer</h2>
-            <p className="text-slate-500 text-sm">Servizi Musicali per Eventi</p>
+        {/* Header con logo e info a sinistra */}
+        <div className="mb-8">
+          <img src={logoIMD} alt="The Italian Music Designer" className="h-48 w-auto mb-6" />
+          <div className="space-y-1 font-sans text-sm">
+            <p className="text-stone-800"><span className="text-stone-400">Preventivo - </span> The IMD</p>
+            <p className="text-stone-800"><span className="text-stone-400">Location:</span> {quote.location}</p>
+            <p className="text-stone-800"><span className="text-stone-400">Evento:</span> {quote.type}</p>
+            <p className="text-stone-800"><span className="text-stone-400">Data:</span> {quote.date}</p>
           </div>
         </div>
 
-        {/* Dettagli Cliente e Evento */}
-        <div className="grid grid-cols-2 gap-8 mb-10">
-          <div>
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Preparato per:</h3>
-            <p className="text-lg font-semibold text-slate-800">{quote.client}</p>
-          </div>
-          <div className="text-right">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dettagli Evento:</h3>
-            <p className="text-slate-800 font-medium">{quote.type}</p>
-            <p className="text-slate-600">Data: {quote.date}</p>
-            <p className="text-slate-600">Luogo: {quote.location}</p>
-          </div>
-        </div>
 
-        {/* Servizi Inclusi */}
+        {/* Proposta Artistica */}
         <div className="mb-12">
-          <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">Servizi Inclusi nel Pacchetto</h3>
-          <div className="bg-slate-50 p-6 rounded-lg border border-slate-100">
-            <p className="text-lg font-medium text-slate-900 mb-2">Formazione: {quote.band}</p>
-            <ul className="list-disc list-inside text-slate-600 space-y-2 mt-4">
-              <li>Intrattenimento musicale per la durata concordata</li>
-              <li>Impianti audio e strumentazione tecnica inclusi</li>
-              <li>Assistenza, montaggio e coordinamento in loco</li>
-              <li>Spese di trasferta incluse</li>
-            </ul>
+          <h3 className="text-xs uppercase tracking-[0.2em] text-stone-400 font-sans mb-6">Proposta Artistica</h3>
+          <div className="space-y-4">
+            {servizi.map((s, i) => (
+              <div key={i} className="flex items-start gap-3 py-2">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-stone-400 flex-shrink-0"></span>
+                <div>
+                  <p className="text-stone-800 font-medium" style={{ fontFamily: "'Georgia', serif" }}>{s.titolo}</p>
+                  <p className="text-stone-400 text-sm font-sans mt-0.5">{s.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Totale */}
-        <div className="flex justify-end border-t border-gray-200 pt-6 mt-12">
-          <div className="w-full md:w-1/2">
-            <div className="flex justify-between items-center py-2">
-              <span className="text-slate-500 font-medium">Totale Servizi:</span>
-              <span className="text-slate-800 font-semibold">€ {quote.total.toLocaleString('it-IT')}</span>
+        <div className="w-full h-px bg-stone-200 mb-10"></div>
+
+        {/* Riepilogo Economico */}
+        <div className="mb-6">
+          <h3 className="text-xs uppercase tracking-[0.2em] text-stone-400 font-sans mb-6">Riepilogo economico</h3>
+          
+          <div className="bg-stone-50 p-8 space-y-5">
+            {/* Prezzo finale IVA inclusa */}
+            <div className="flex justify-between items-baseline">
+              <span className="text-stone-600 font-sans text-sm">Totale (IVA inclusa)</span>
+              <span className="text-2xl font-light text-stone-800">€ {prezzoFatturato.toLocaleString('it-IT')}</span>
             </div>
-            <div className="flex justify-between items-center py-2 text-sm text-slate-500">
-              <span>IVA (se applicabile):</span>
-              <span>Da calcolare</span>
-            </div>
-            <div className="flex justify-between items-center py-4 mt-2 border-t-2 border-slate-900">
-              <span className="text-xl font-bold text-slate-900">Totale Finale:</span>
-              <span className="text-2xl font-bold text-slate-900">€ {quote.total.toLocaleString('it-IT')}</span>
+
+            <div className="w-full h-px bg-stone-200"></div>
+
+            {/* Sconto per te */}
+            <div className="flex justify-between items-baseline">
+              <div>
+                <span className="text-stone-800 font-sans text-sm font-medium">Prezzo riservato a te</span>
+              </div>
+              <span className="text-3xl font-light text-stone-900">€ {scontoperTe.toLocaleString('it-IT')}</span>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-16 text-center text-sm text-slate-400 pt-8 border-t border-gray-100">
-          <p>Il presente preventivo ha validità 30 giorni dalla data di emissione. <br/>Non sono inclusi permessi SIAE o eventuali tasse locali della location.</p>
+        {/* Note */}
+        <div className="mt-14 pt-8 border-t border-stone-100">
+          <p className="text-xs text-stone-400 font-sans leading-relaxed text-center">
+            Il presente preventivo ha validità 30 giorni dalla data di emissione.<br />
+          </p>
+        </div>
+
+        {/* Footer brand */}
+        <div className="mt-10 text-center">
+          <div className="w-8 h-px bg-stone-300 mx-auto mb-4"></div>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-stone-300 font-sans">The Italian Music Designer</p>
         </div>
 
       </div>
@@ -1095,9 +1209,19 @@ function PrintView({ quote, onBack }) {
 // COMPONENTE PRINCIPALE (ROUTING)
 // ==========================================
 export default function App() {
-  // Stato iniziale: Array Vuoto come richiesto!
-  const [quotes, setQuotes] = useState([]);
+  // Carica preventivi da localStorage (persistenza tra refresh)
+  const [quotes, setQuotes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('imd-quotes');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   
+  // Salva su localStorage ogni volta che quotes cambia
+  useEffect(() => {
+    localStorage.setItem('imd-quotes', JSON.stringify(quotes));
+  }, [quotes]);
+
   // Gestione delle "Pagine": 'dashboard' | 'create' | 'print'
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedQuote, setSelectedQuote] = useState(null);
@@ -1138,7 +1262,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {currentView === 'dashboard' ? (
           <Dashboard 
             quotes={quotes}
