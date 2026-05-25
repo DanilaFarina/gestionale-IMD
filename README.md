@@ -25,3 +25,8 @@ Una volta che l'app funziona bene in locale, devi "impacchettarla" in file stati
     *   In pochi secondi, Netlify pubblicherà il sito e ti fornirà un link pubblico (es. `mia-app-react.netlify.app`) che potrai inviare a chiunque!
 
 *(Nota: per progetti professionali, la best practice è caricare il codice su GitHub e collegare la repository a Vercel/Netlify, in modo che il sito si aggiorni automaticamente ad ogni tua modifica).*project.
+
+## creare database
+## creare un sistema per nascondere le proprietà e proteggere le passwords
+## fare tests della sicurezza per trovare pitfalls 
+## analisi architettura da github + sviluppo + testing + sicurezza + produzione
