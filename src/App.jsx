@@ -432,21 +432,24 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       ? formData.numNotti * formData.prezzoPerNotte * formData.numMusicisti
       : 0;
 
-    // Costo vivo ("uscite") - senza trasferta per calcolo commissioni
+    // Prezzo servizi (base)
     const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
 
-    // Ricarichi/commissioni (WP su prezzo fatturato, gli altri su costi base; trasferta esclusa)
-    const prezzoFatturatoBase = totaleCostiBase / 0.6;
-    const commissioneWP = formData.usaCommWP ? prezzoFatturatoBase * (formData.percCommWP / 100) : 0;
-    const commissioneFTM = formData.usaCommFTM ? totaleCostiBase * (formData.percCommFTM / 100) : 0;
-    const extraScontoVal = formData.usaExtraSconto ? totaleCostiBase * (formData.percExtraSconto / 100) : 0;
-    const percMaggAgenzia = Math.min(0.99, Math.max(0, formData.percMaggAgenzia / 100));
-    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia
-      ? (totaleCostiBase / (1 - percMaggAgenzia)) - totaleCostiBase
-      : 0;
-    const subTotale = totaleCostiBase + commissioneWP + commissioneFTM + maggiorazioneAgenziaVal - extraScontoVal + costoTrasferta + costoPernottamento;
+    // Prezzo netto: servizi + commissione agenzia - extra sconto
+    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia ? totaleCostiBase * (formData.percMaggAgenzia / 100) : 0;
+    const baseNetto = totaleCostiBase + maggiorazioneAgenziaVal;
+    const extraScontoVal = formData.usaExtraSconto ? baseNetto * (formData.percExtraSconto / 100) : 0;
+    const prezzoNetto = baseNetto - extraScontoVal;
 
-    // Totale finale al cliente
+    // Prezzo lordo (senza calcolare IVA nel totale numerico)
+    const prezzoLordo = prezzoNetto / 0.6;
+
+    // Commissioni sul lordo
+    const commissioneWP = formData.usaCommWP ? prezzoLordo * (formData.percCommWP / 100) : 0;
+    const commissioneFTM = formData.usaCommFTM ? prezzoLordo * (formData.percCommFTM / 100) : 0;
+
+    // Prezzo finale numerico escluso IVA (IVA solo come dicitura)
+    const subTotale = prezzoLordo + commissioneWP + commissioneFTM + costoTrasferta + costoPernottamento;
     const totaleFinale = subTotale - formData.sconto;
 
     // Margine Agenzia stimato
@@ -467,6 +470,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       costoTrasferta,
       costoPernottamento,
       totaleCostiBase,
+      prezzoNetto,
+      prezzoLordo,
       commissioneWP,
       commissioneFTM,
       extraScontoVal,
@@ -476,9 +481,9 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     };
   }, [formData]);
 
-  const prezzoFatturato = Math.round(calc.totaleFinale / 0.6);
-  const prezzoFinale = Math.round(prezzoFatturato / 1.22);
-  const scontoPerTe = Math.round((prezzoFatturato * 0.7) / 1.22);
+  const prezzoFatturato = Math.round(calc.prezzoLordo);
+  const prezzoFinale = Math.round(calc.totaleFinale);
+  const scontoPerTe = Math.round(prezzoFinale * 0.7);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -593,11 +598,13 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(calc.totaleCostiBase));
-    addLine('Subtotale (pre-sconto)', euro(calc.totaleFinale + formData.sconto));
-    addLine('Totale Netto Interno', euro(calc.totaleFinale));
+    addLine('Prezzo Netto', euro(calc.prezzoNetto));
+    addLine('Prezzo Lordo', euro(calc.prezzoLordo));
+    addLine('Subtotale (pre-sconto manuale)', euro(calc.totaleFinale + formData.sconto));
+    addLine('Totale Finale (escl. IVA)', euro(calc.totaleFinale));
     addLine('Prezzo Fatturato', euro(prezzoFatturato));
     addLine('Prezzo Finale Cliente', `${euro(prezzoFinale)} + IVA`);
-    addLine('Sconto per Te', euro(scontoPerTe));
+    addLine('Sconto per Te', `${euro(scontoPerTe)} + IVA`);
     addLine('Margine Agenzia Stimato', euro(calc.margineAgenzia));
 
     pdf.save(`Report_Interno_${reportId}.pdf`);
@@ -1091,14 +1098,14 @@ function QuoteForm({ onCancel, onSave, initialData }) {
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Prezzo Fatturato</p>
                 <div className="text-2xl font-bold text-indigo-300">
-                  € {prezzoFatturato.toLocaleString('it-IT')}
+                  € {prezzoFatturato.toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Sconto per Te</p>
                 <div className="text-2xl font-bold text-emerald-300">
-                  € {scontoPerTe.toLocaleString('it-IT')}
+                  € {scontoPerTe.toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA</span>
                 </div>
               </div>
 
@@ -1144,10 +1151,10 @@ function PrintView({ quote, onBack }) {
   const fd = quote.formData || {};
   const dettagliFormazione = (fd.band || '').trim();
 
-  // Calcolo prezzi finali
-  const prezzoFatturato = Math.round(quote.total / 0.6);
-  const prezzoFinale = Math.round(prezzoFatturato / 1.22);
-  const scontoperTe = Math.round((prezzoFatturato * 0.8) / 1.22);
+  // Calcolo prezzi finali (IVA non calcolata numericamente)
+  const prezzoFatturato = Math.round(quote.total);
+  const prezzoFinale = Math.round(quote.total);
+  const scontoperTe = Math.round(prezzoFinale * 0.7);
 
   // Costruisci lista servizi dinamica dal formData
   const servizi = [];
@@ -1348,7 +1355,7 @@ function PrintView({ quote, onBack }) {
               <div>
                 <span className="text-stone-800 font-sans text-sm font-medium">Prezzo riservato a te</span>
               </div>
-              <span className="text-3xl font-light text-stone-900">€ {scontoperTe.toLocaleString('it-IT')}</span>
+              <span className="text-3xl font-light text-stone-900">€ {scontoperTe.toLocaleString('it-IT')} + IVA</span>
             </div>
           </div>
         </div>
@@ -1455,20 +1462,19 @@ export default function App() {
       : 0;
 
     const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
-    const prezzoFatturatoBase = totaleCostiBase / 0.6;
-    const commissioneWP = fd.usaCommWP ? prezzoFatturatoBase * (Number(fd.percCommWP || 0) / 100) : 0;
-    const commissioneFTM = fd.usaCommFTM ? totaleCostiBase * (Number(fd.percCommFTM || 0) / 100) : 0;
-    const extraScontoVal = fd.usaExtraSconto ? totaleCostiBase * (Number(fd.percExtraSconto || 0) / 100) : 0;
-    const percMaggAgenzia = Math.min(0.99, Math.max(0, Number(fd.percMaggAgenzia || 0) / 100));
-    const maggiorazioneAgenziaVal = fd.usaMaggAgenzia
-      ? (totaleCostiBase / (1 - percMaggAgenzia)) - totaleCostiBase
-      : 0;
+    const maggiorazioneAgenziaVal = fd.usaMaggAgenzia ? totaleCostiBase * (Number(fd.percMaggAgenzia || 0) / 100) : 0;
+    const baseNetto = totaleCostiBase + maggiorazioneAgenziaVal;
+    const extraScontoVal = fd.usaExtraSconto ? baseNetto * (Number(fd.percExtraSconto || 0) / 100) : 0;
+    const prezzoNetto = baseNetto - extraScontoVal;
+    const prezzoLordo = prezzoNetto / 0.6;
+    const commissioneWP = fd.usaCommWP ? prezzoLordo * (Number(fd.percCommWP || 0) / 100) : 0;
+    const commissioneFTM = fd.usaCommFTM ? prezzoLordo * (Number(fd.percCommFTM || 0) / 100) : 0;
     const scontoManuale = Number(fd.sconto || 0);
-    const subTotale = totaleCostiBase + commissioneWP + commissioneFTM + maggiorazioneAgenziaVal - extraScontoVal + costoTrasferta + costoPernottamento;
+    const subTotale = prezzoLordo + commissioneWP + commissioneFTM + costoTrasferta + costoPernottamento;
     const totaleFinale = subTotale - scontoManuale;
-    const prezzoFatturato = Math.round(totaleFinale / 0.6);
-    const prezzoFinale = Math.round(prezzoFatturato / 1.22);
-    const scontoPerTe = Math.round((prezzoFatturato * 0.7) / 1.22);
+    const prezzoFatturato = Math.round(prezzoLordo);
+    const prezzoFinale = Math.round(totaleFinale);
+    const scontoPerTe = Math.round(prezzoFinale * 0.7);
     const margineAgenzia = totaleFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
 
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -1563,11 +1569,13 @@ export default function App() {
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(totaleCostiBase));
-    addLine('Subtotale (pre-sconto)', euro(subTotale));
-    addLine('Totale Netto Interno', euro(totaleFinale));
+    addLine('Prezzo Netto', euro(prezzoNetto));
+    addLine('Prezzo Lordo', euro(prezzoLordo));
+    addLine('Subtotale (pre-sconto manuale)', euro(subTotale));
+    addLine('Totale Finale (escl. IVA)', euro(totaleFinale));
     addLine('Prezzo Fatturato', euro(prezzoFatturato));
     addLine('Prezzo Finale Cliente', `${euro(prezzoFinale)} + IVA`);
-    addLine('Sconto per Te', euro(scontoPerTe));
+    addLine('Sconto per Te', `${euro(scontoPerTe)} + IVA`);
     addLine('Margine Agenzia Stimato', euro(margineAgenzia));
 
     pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
