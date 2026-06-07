@@ -28,7 +28,7 @@ import {
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
-function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint }) {
+function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint, onDownloadInternalReport }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
 
@@ -189,6 +189,15 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint 
                             <Printer size={18} />
                           </button>
                         )}
+                        {quote.formData && (
+                          <button
+                            onClick={() => onDownloadInternalReport(quote)}
+                            title="Scarica Report Interno"
+                            className="p-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                          >
+                            <Calculator size={18} />
+                          </button>
+                        )}
                         {quote.status === 'In attesa' && (
                           <button 
                             onClick={() => onApprove(quote.id)}
@@ -266,6 +275,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     numPostazioni: 1,
     numMusicisti: 3,
     cachetMusicista: 200,
+    costoCerimonia: 0,
+    costoExtra: 0,
     numImpianti: 1,
     costoImpianto: 50,
     costoDj: 0,
@@ -395,6 +406,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   // Calcoli in tempo reale (Il "Riepilogo Interno" / Excel)
   const calc = useMemo(() => {
     const costiMusicisti = formData.numMusicisti * formData.cachetMusicista;
+    const costoCerimonia = Number(formData.costoCerimonia);
+    const costoExtra = Number(formData.costoExtra);
     const costiImpianti = formData.numImpianti * formData.costoImpianto;
     const costoDj = Number(formData.costoDj);
     const costoBraniRichiesta = formData.usaBraniRichiesta ? Number(formData.costoBraniRichiesta) : 0;
@@ -420,13 +433,17 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       : 0;
 
     // Costo vivo ("uscite") - senza trasferta per calcolo commissioni
-    const totaleCostiBase = costiMusicisti + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
+    const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
 
-    // Ricarichi/commissioni (sui costi base, non sulla trasferta)
-    const commissioneWP = formData.usaCommWP ? totaleCostiBase * (formData.percCommWP / 100) : 0;
+    // Ricarichi/commissioni (WP su prezzo fatturato, gli altri su costi base; trasferta esclusa)
+    const prezzoFatturatoBase = totaleCostiBase / 0.6;
+    const commissioneWP = formData.usaCommWP ? prezzoFatturatoBase * (formData.percCommWP / 100) : 0;
     const commissioneFTM = formData.usaCommFTM ? totaleCostiBase * (formData.percCommFTM / 100) : 0;
     const extraScontoVal = formData.usaExtraSconto ? totaleCostiBase * (formData.percExtraSconto / 100) : 0;
-    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia ? totaleCostiBase * (formData.percMaggAgenzia / 100) : 0;
+    const percMaggAgenzia = Math.min(0.99, Math.max(0, formData.percMaggAgenzia / 100));
+    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia
+      ? (totaleCostiBase / (1 - percMaggAgenzia)) - totaleCostiBase
+      : 0;
     const subTotale = totaleCostiBase + commissioneWP + commissioneFTM + maggiorazioneAgenziaVal - extraScontoVal + costoTrasferta + costoPernottamento;
 
     // Totale finale al cliente
@@ -437,6 +454,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 
     return {
       costiMusicisti,
+      costoCerimonia,
+      costoExtra,
       costiImpianti,
       costoDj,
       costoBraniRichiesta,
@@ -457,6 +476,10 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     };
   }, [formData]);
 
+  const prezzoFatturato = Math.round(calc.totaleFinale / 0.6);
+  const prezzoFinale = Math.round(prezzoFatturato / 1.22);
+  const scontoPerTe = Math.round((prezzoFatturato * 0.7) / 1.22);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if(!formData.client) return alert("Inserisci almeno il nome del cliente!");
@@ -467,12 +490,117 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       type: formData.type,
       date: formData.date || 'Da definire',
       location: formData.address || 'Da definire',
-      band: `${getFormazioneName(formData.numMusicisti)}${formData.band ? ' — ' + formData.band : ''}`,
+      band: formData.band || '',
       total: calc.totaleFinale,
       status: formData._editStatus || 'In attesa',
       formData: { ...formData }
     };
     onSave(newQuote);
+  };
+
+  const handleDownloadInternalReport = () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 14;
+
+    const ensureSpace = (needed = 7) => {
+      if (y + needed > pageHeight - 12) {
+        pdf.addPage();
+        y = 14;
+      }
+    };
+
+    const addTitle = (text) => {
+      ensureSpace(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14);
+      pdf.text(text, margin, y);
+      y += 8;
+    };
+
+    const addSection = (text) => {
+      ensureSpace(8);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.text(text, margin, y);
+      y += 6;
+    };
+
+    const addLine = (label, value) => {
+      const text = `${label}: ${value ?? '-'}`;
+      const wrapped = pdf.splitTextToSize(text, contentWidth);
+      ensureSpace(5 + wrapped.length * 4);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.text(wrapped, margin, y);
+      y += wrapped.length * 4 + 1;
+    };
+
+    const euro = (value) =>
+      `EUR ${Number(value || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const reportId = formData._editId || `DRAFT-${new Date().toISOString().slice(0, 10)}`;
+
+    addTitle('REPORT INTERNO PREVENTIVO');
+    addLine('ID Report', reportId);
+    addLine('Generato il', new Date().toLocaleString('it-IT'));
+
+    y += 2;
+    addSection('Dettagli Generali');
+    addLine('Cliente / Sposi', formData.client || '-');
+    addLine('Tipo Evento', formData.type || '-');
+    addLine('Data Evento', formData.date || '-');
+    addLine('Indirizzo', formData.address || '-');
+    addLine('Numero Momenti', formData.numMomenti);
+    addLine('Numero Postazioni', formData.numPostazioni);
+
+    y += 2;
+    addSection('Servizio Musicale e Staffing');
+    addLine('Numero Musicisti', formData.numMusicisti);
+    addLine('Formazione', formData.band || '-');
+    addLine('Cachet per Musicista', euro(formData.cachetMusicista));
+    addLine('Costo Cerimonia', euro(formData.costoCerimonia));
+    addLine('Costo Extra', euro(formData.costoExtra));
+    addLine('Numero Impianti Audio', formData.numImpianti);
+    addLine('Costo DJ', euro(formData.costoDj));
+    addLine('Brani su Richiesta', formData.usaBraniRichiesta ? `SI (${euro(formData.costoBraniRichiesta)})` : 'NO');
+    addLine('Event Coordinator', formData.usaCoordinator ? `SI (${euro(formData.costoCoordinator)})` : 'NO');
+
+    y += 2;
+    addSection('Trasferta e Pernottamento');
+    addLine('Distanza', `${formData.distanzaKm} km`);
+    addLine('Andata/Ritorno', formData.andataRitorno ? 'SI' : 'NO');
+    addLine('Numero Macchine', formData.numMacchine);
+    addLine('Prezzo Benzina', `${euro(formData.prezzoBenzina)} / L`);
+    addLine('Consumo Medio', `${formData.consumoMedio} km/L`);
+    addLine('Pedaggio', formData.inclPedaggio ? (formData.pedaggioAutoCalc ? `Stimato (${euro(calc.pedaggioStimato)})` : `Manuale (${euro(formData.pedaggioManuale)})`) : 'Non incluso');
+    addLine('Costo Carburante', euro(calc.costoCarburante));
+    addLine('Costo Trasferta Totale', euro(calc.costoTrasferta));
+    addLine('Pernottamento', formData.usaPernottamento ? `SI (${formData.numNotti} notti x ${euro(formData.prezzoPerNotte)})` : 'NO');
+    addLine('Costo Pernottamento Totale', euro(calc.costoPernottamento));
+
+    y += 2;
+    addSection('Commissioni e Sconti');
+    addLine('Commissione Wedding Planner', formData.usaCommWP ? `${formData.percCommWP}% (${euro(calc.commissioneWP)})` : 'NO');
+    addLine('Commissione Fix The Music', formData.usaCommFTM ? `${formData.percCommFTM}% (${euro(calc.commissioneFTM)})` : 'NO');
+    addLine('Extra Sconto', formData.usaExtraSconto ? `${formData.percExtraSconto}% (-${euro(calc.extraScontoVal)})` : 'NO');
+    addLine('Maggiorazione Agenzia', formData.usaMaggAgenzia ? `${formData.percMaggAgenzia}% (${euro(calc.maggiorazioneAgenziaVal)})` : 'NO');
+    addLine('Sconto Manuale', euro(formData.sconto));
+
+    y += 2;
+    addSection('Riepilogo Economico');
+    addLine('Totale Costi Base', euro(calc.totaleCostiBase));
+    addLine('Subtotale (pre-sconto)', euro(calc.totaleFinale + formData.sconto));
+    addLine('Totale Netto Interno', euro(calc.totaleFinale));
+    addLine('Prezzo Fatturato', euro(prezzoFatturato));
+    addLine('Prezzo Finale Cliente', `${euro(prezzoFinale)} + IVA`);
+    addLine('Sconto per Te', euro(scontoPerTe));
+    addLine('Margine Agenzia Stimato', euro(calc.margineAgenzia));
+
+    pdf.save(`Report_Interno_${reportId}.pdf`);
   };
 
   return (
@@ -556,6 +684,20 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   <p className="text-xs text-slate-500 mt-1">Regola in base ai momenti (es. 200€ 1 momento, 300€ 2 momenti)</p>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Costo Cerimonia (€)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                    <input type="number" name="costoCerimonia" min="0" value={formData.costoCerimonia} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Costo Extra (€)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                    <input type="number" name="costoExtra" min="0" value={formData.costoExtra} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Num. Impianti Audio</label>
                   <input type="number" name="numImpianti" min="0" value={formData.numImpianti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                 </div>
@@ -569,8 +711,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Dettagli Formazione (opzionale — per PDF)</label>
-                  <input type="text" name="band" value={formData.band} onChange={handleChange} placeholder="es. Contrabbasso, Batteria, Piano + DJ" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  <p className="text-xs text-slate-500 mt-1">Formazione: <span className="font-medium text-slate-700">{getFormazioneName(formData.numMusicisti)}</span> (calcolata automaticamente)</p>
+                  <textarea name="band" rows={3} value={formData.band} onChange={handleChange} placeholder="es. Contrabbasso, Batteria, Piano + DJ" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                 </div>
               </div>
 
@@ -850,6 +991,18 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                 <span>Cachet Musicisti ({formData.numMusicisti})</span>
                 <span>€ {calc.costiMusicisti.toLocaleString('it-IT')}</span>
               </div>
+              {calc.costoCerimonia > 0 && (
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Costo Cerimonia</span>
+                  <span>€ {calc.costoCerimonia.toLocaleString('it-IT')}</span>
+                </div>
+              )}
+              {calc.costoExtra > 0 && (
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Costo Extra</span>
+                  <span>€ {calc.costoExtra.toLocaleString('it-IT')}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-slate-300">
                 <span>Impianti Audio ({formData.numImpianti})</span>
                 <span>€ {calc.costiImpianti.toLocaleString('it-IT')}</span>
@@ -929,23 +1082,23 @@ function QuoteForm({ onCancel, onSave, initialData }) {
             {/* TOTALI FINALI */}
             <div className="bg-slate-900 rounded-xl p-4 border border-slate-700 space-y-4">
               <div>
-                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1"> Prezzo netto</p>
+                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Prezzo Finale</p>
                 <div className="text-3xl font-bold text-white">
-                  € {calc.totaleFinale.toLocaleString('it-IT', {maximumFractionDigits: 0})}
+                  € {prezzoFinale.toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Prezzo Fatturato</p>
                 <div className="text-2xl font-bold text-indigo-300">
-                  € {Math.round(calc.totaleFinale / 0.6).toLocaleString('it-IT')}
+                  € {prezzoFatturato.toLocaleString('it-IT')}
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Sconto per Te</p>
                 <div className="text-2xl font-bold text-emerald-300">
-                  € {Math.round((calc.totaleFinale / 0.6) * 0.8).toLocaleString('it-IT')}
+                  € {scontoPerTe.toLocaleString('it-IT')}
                 </div>
               </div>
 
@@ -965,6 +1118,14 @@ function QuoteForm({ onCancel, onSave, initialData }) {
               <Save size={20} />
               Salva Preventivo
             </button>
+            <button
+              type="button"
+              onClick={handleDownloadInternalReport}
+              className="w-full mt-3 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold shadow-sm transition-colors"
+            >
+              <Printer size={20} />
+              Scarica Report Interno
+            </button>
             <p className="text-center text-xs text-slate-500 mt-3">
               Il preventivo verrà salvato con stato "In attesa" nella Dashboard.
             </p>
@@ -981,18 +1142,22 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 function PrintView({ quote, onBack }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const fd = quote.formData || {};
+  const dettagliFormazione = (fd.band || '').trim();
 
   // Calcolo prezzi finali
   const prezzoFatturato = Math.round(quote.total / 0.6);
-  const scontoperTe = Math.round(prezzoFatturato * 0.8);
+  const prezzoFinale = Math.round(prezzoFatturato / 1.22);
+  const scontoperTe = Math.round((prezzoFatturato * 0.8) / 1.22);
 
   // Costruisci lista servizi dinamica dal formData
   const servizi = [];
 
-  servizi.push({
-    titolo: `Formazione musicale — ${quote.band}`,
-    desc: `${fd.numMusicisti || 3} musicisti professionisti per intrattenimento musicale dal vivo`
-  });
+  if (dettagliFormazione) {
+    servizi.push({
+      titolo: 'Formazione musicale',
+      desc: dettagliFormazione
+    });
+  }
 
   if (fd.numMomenti > 1) {
     servizi.push({
@@ -1136,9 +1301,10 @@ function PrintView({ quote, onBack }) {
         
         {/* Header con logo e info a sinistra */}
         <div className="mb-8">
-          <img src={logoIMD} alt="The Italian Music Designer" className="h-48 w-auto mb-6" />
+          <img src={logoIMD} alt="The Italian Music Designer" className="h-48 w-auto mb-6 mx-auto" />
           <div className="space-y-1 font-sans text-sm">
             <p className="text-stone-800"><span className="text-stone-400">Preventivo - </span> The IMD</p>
+            <p className="text-stone-800"><span className="text-stone-400">Intestatario:</span> {quote.client}</p>
             <p className="text-stone-800"><span className="text-stone-400">Location:</span> {quote.location}</p>
             <p className="text-stone-800"><span className="text-stone-400">Evento:</span> {quote.type}</p>
             <p className="text-stone-800"><span className="text-stone-400">Data:</span> {quote.date}</p>
@@ -1169,10 +1335,10 @@ function PrintView({ quote, onBack }) {
           <h3 className="text-xs uppercase tracking-[0.2em] text-stone-400 font-sans mb-6">Riepilogo economico</h3>
           
           <div className="bg-stone-50 p-8 space-y-5">
-            {/* Prezzo finale IVA inclusa */}
+            {/* Prezzo finale con IVA esposta a parte */}
             <div className="flex justify-between items-baseline">
-              <span className="text-stone-600 font-sans text-sm">Totale (IVA inclusa)</span>
-              <span className="text-2xl font-light text-stone-800">€ {prezzoFatturato.toLocaleString('it-IT')}</span>
+              <span className="text-stone-600 font-sans text-sm">Prezzo finale</span>
+              <span className="text-2xl font-light text-stone-800">€ {prezzoFinale.toLocaleString('it-IT')} + IVA</span>
             </div>
 
             <div className="w-full h-px bg-stone-200"></div>
@@ -1260,6 +1426,153 @@ export default function App() {
     setCurrentView('print');
   };
 
+  const handleDownloadInternalReport = (quote) => {
+    const fd = quote.formData;
+    if (!fd) {
+      alert('Dati del form non disponibili per questo preventivo.');
+      return;
+    }
+
+    const costiMusicisti = Number(fd.numMusicisti || 0) * Number(fd.cachetMusicista || 0);
+    const costoCerimonia = Number(fd.costoCerimonia || 0);
+    const costoExtra = Number(fd.costoExtra || 0);
+    const costiImpianti = Number(fd.numImpianti || 0) * Number(fd.costoImpianto || 0);
+    const costoDj = Number(fd.costoDj || 0);
+    const costoBraniRichiesta = fd.usaBraniRichiesta ? Number(fd.costoBraniRichiesta || 0) : 0;
+    const costiCoordinator = fd.usaCoordinator ? Number(fd.costoCoordinator || 0) : 0;
+
+    const distanzaEffettiva = fd.andataRitorno ? Number(fd.distanzaKm || 0) * 2 : Number(fd.distanzaKm || 0);
+    const litriNecessari = Number(fd.consumoMedio || 0) > 0 ? distanzaEffettiva / Number(fd.consumoMedio) : 0;
+    const costoCarburante = Math.round(litriNecessari * Number(fd.prezzoBenzina || 0) * Number(fd.numMacchine || 0));
+    const pedaggioStimato = fd.inclPedaggio
+      ? (fd.pedaggioAutoCalc
+          ? Math.round(distanzaEffettiva * 0.08 * Number(fd.numMacchine || 0))
+          : Number(fd.pedaggioManuale || 0))
+      : 0;
+    const costoTrasferta = costoCarburante + pedaggioStimato;
+    const costoPernottamento = fd.usaPernottamento
+      ? Number(fd.numNotti || 0) * Number(fd.prezzoPerNotte || 0) * Number(fd.numMusicisti || 0)
+      : 0;
+
+    const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
+    const prezzoFatturatoBase = totaleCostiBase / 0.6;
+    const commissioneWP = fd.usaCommWP ? prezzoFatturatoBase * (Number(fd.percCommWP || 0) / 100) : 0;
+    const commissioneFTM = fd.usaCommFTM ? totaleCostiBase * (Number(fd.percCommFTM || 0) / 100) : 0;
+    const extraScontoVal = fd.usaExtraSconto ? totaleCostiBase * (Number(fd.percExtraSconto || 0) / 100) : 0;
+    const percMaggAgenzia = Math.min(0.99, Math.max(0, Number(fd.percMaggAgenzia || 0) / 100));
+    const maggiorazioneAgenziaVal = fd.usaMaggAgenzia
+      ? (totaleCostiBase / (1 - percMaggAgenzia)) - totaleCostiBase
+      : 0;
+    const scontoManuale = Number(fd.sconto || 0);
+    const subTotale = totaleCostiBase + commissioneWP + commissioneFTM + maggiorazioneAgenziaVal - extraScontoVal + costoTrasferta + costoPernottamento;
+    const totaleFinale = subTotale - scontoManuale;
+    const prezzoFatturato = Math.round(totaleFinale / 0.6);
+    const prezzoFinale = Math.round(prezzoFatturato / 1.22);
+    const scontoPerTe = Math.round((prezzoFatturato * 0.7) / 1.22);
+    const margineAgenzia = totaleFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 14;
+
+    const ensureSpace = (needed = 7) => {
+      if (y + needed > pageHeight - 12) {
+        pdf.addPage();
+        y = 14;
+      }
+    };
+
+    const addTitle = (text) => {
+      ensureSpace(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14);
+      pdf.text(text, margin, y);
+      y += 8;
+    };
+
+    const addSection = (text) => {
+      ensureSpace(8);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.text(text, margin, y);
+      y += 6;
+    };
+
+    const addLine = (label, value) => {
+      const text = `${label}: ${value ?? '-'}`;
+      const wrapped = pdf.splitTextToSize(text, contentWidth);
+      ensureSpace(5 + wrapped.length * 4);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.text(wrapped, margin, y);
+      y += wrapped.length * 4 + 1;
+    };
+
+    const euro = (value) =>
+      `EUR ${Number(value || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    addTitle('REPORT INTERNO PREVENTIVO');
+    addLine('ID Report', quote.id || '-');
+    addLine('Generato il', new Date().toLocaleString('it-IT'));
+
+    y += 2;
+    addSection('Dettagli Generali');
+    addLine('Cliente / Sposi', fd.client || quote.client || '-');
+    addLine('Tipo Evento', fd.type || quote.type || '-');
+    addLine('Data Evento', fd.date || quote.date || '-');
+    addLine('Indirizzo', fd.address || quote.location || '-');
+    addLine('Numero Momenti', fd.numMomenti);
+    addLine('Numero Postazioni', fd.numPostazioni);
+
+    y += 2;
+    addSection('Servizio Musicale e Staffing');
+    addLine('Numero Musicisti', fd.numMusicisti);
+    addLine('Formazione', fd.band || '-');
+    addLine('Cachet per Musicista', euro(fd.cachetMusicista));
+    addLine('Costo Cerimonia', euro(fd.costoCerimonia));
+    addLine('Costo Extra', euro(fd.costoExtra));
+    addLine('Numero Impianti Audio', fd.numImpianti);
+    addLine('Costo DJ', euro(fd.costoDj));
+    addLine('Brani su Richiesta', fd.usaBraniRichiesta ? `SI (${euro(fd.costoBraniRichiesta)})` : 'NO');
+    addLine('Event Coordinator', fd.usaCoordinator ? `SI (${euro(fd.costoCoordinator)})` : 'NO');
+
+    y += 2;
+    addSection('Trasferta e Pernottamento');
+    addLine('Distanza', `${fd.distanzaKm || 0} km`);
+    addLine('Andata/Ritorno', fd.andataRitorno ? 'SI' : 'NO');
+    addLine('Numero Macchine', fd.numMacchine);
+    addLine('Prezzo Benzina', `${euro(fd.prezzoBenzina)} / L`);
+    addLine('Consumo Medio', `${fd.consumoMedio || 0} km/L`);
+    addLine('Pedaggio', fd.inclPedaggio ? (fd.pedaggioAutoCalc ? `Stimato (${euro(pedaggioStimato)})` : `Manuale (${euro(fd.pedaggioManuale)})`) : 'Non incluso');
+    addLine('Costo Carburante', euro(costoCarburante));
+    addLine('Costo Trasferta Totale', euro(costoTrasferta));
+    addLine('Pernottamento', fd.usaPernottamento ? `SI (${fd.numNotti} notti x ${euro(fd.prezzoPerNotte)})` : 'NO');
+    addLine('Costo Pernottamento Totale', euro(costoPernottamento));
+
+    y += 2;
+    addSection('Commissioni e Sconti');
+    addLine('Commissione Wedding Planner', fd.usaCommWP ? `${fd.percCommWP}% (${euro(commissioneWP)})` : 'NO');
+    addLine('Commissione Fix The Music', fd.usaCommFTM ? `${fd.percCommFTM}% (${euro(commissioneFTM)})` : 'NO');
+    addLine('Extra Sconto', fd.usaExtraSconto ? `${fd.percExtraSconto}% (-${euro(extraScontoVal)})` : 'NO');
+    addLine('Maggiorazione Agenzia', fd.usaMaggAgenzia ? `${fd.percMaggAgenzia}% (${euro(maggiorazioneAgenziaVal)})` : 'NO');
+    addLine('Sconto Manuale', euro(scontoManuale));
+
+    y += 2;
+    addSection('Riepilogo Economico');
+    addLine('Totale Costi Base', euro(totaleCostiBase));
+    addLine('Subtotale (pre-sconto)', euro(subTotale));
+    addLine('Totale Netto Interno', euro(totaleFinale));
+    addLine('Prezzo Fatturato', euro(prezzoFatturato));
+    addLine('Prezzo Finale Cliente', `${euro(prezzoFinale)} + IVA`);
+    addLine('Sconto per Te', euro(scontoPerTe));
+    addLine('Margine Agenzia Stimato', euro(margineAgenzia));
+
+    pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans p-4 md:p-8">
       <div className="max-w-[1600px] mx-auto">
@@ -1271,6 +1584,7 @@ export default function App() {
             onEdit={handleEdit}
             onCreateNew={() => setCurrentView('create')}
             onPrint={handlePrint}
+            onDownloadInternalReport={handleDownloadInternalReport}
           />
         ) : currentView === 'print' && selectedQuote ? (
           <PrintView 
