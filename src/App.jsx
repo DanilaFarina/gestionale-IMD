@@ -454,25 +454,25 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     // Prezzo servizi (base)
     const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
 
-    // Prezzo netto: servizi + commissione agenzia - extra sconto
-    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia ? totaleCostiBase * (n(formData.percMaggAgenzia) / 100) : 0;
-    const baseNetto = totaleCostiBase + maggiorazioneAgenziaVal;
-    const extraScontoVal = formData.usaExtraSconto ? baseNetto * (n(formData.percExtraSconto) / 100) : 0;
-    const prezzoNetto = baseNetto - extraScontoVal;
+    // 1. Maggiorazione agenzia come divisore sui servizi
+    const prezzoServiziMaggiorato = formData.usaMaggAgenzia
+      ? totaleCostiBase / (1 - n(formData.percMaggAgenzia) / 100)
+      : totaleCostiBase;
+    const maggiorazioneAgenziaVal = prezzoServiziMaggiorato - totaleCostiBase;
 
-    // Prezzo lordo (senza calcolare IVA nel totale numerico)
-    const prezzoLordo = prezzoNetto / 0.6;
+    // 2. Prezzo finale = servizi maggiorati + trasferta, FTM prima poi WP
+    let prezzoFinale = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
+    const preCommFTM = prezzoFinale;
+    if (formData.usaCommFTM) prezzoFinale = prezzoFinale / (1 - n(formData.percCommFTM) / 100);
+    const commissioneFTMVal = prezzoFinale - preCommFTM;
+    const preCommWP = prezzoFinale;
+    if (formData.usaCommWP) prezzoFinale = prezzoFinale / (1 - n(formData.percCommWP) / 100);
+    const commissioneWPVal = prezzoFinale - preCommWP;
 
-    // Commissioni sul lordo
-    const commissioneWP = formData.usaCommWP ? prezzoLordo * (n(formData.percCommWP) / 100) : 0;
-    const commissioneFTM = formData.usaCommFTM ? prezzoLordo * (n(formData.percCommFTM) / 100) : 0;
-
-    // Prezzo finale numerico escluso IVA (IVA solo come dicitura)
-    const subTotale = prezzoLordo + commissioneWP + commissioneFTM + costoTrasferta + costoPernottamento;
-    const totaleFinale = subTotale - n(formData.sconto);
-
-    // Margine Agenzia stimato
-    const margineAgenzia = totaleFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
+    // 3. Lordo (÷0.6) e sconto per te (×0.8)
+    const prezzoLordo = prezzoFinale / 0.6;
+    const scontoPerTe = prezzoLordo * 0.8;
+    const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
 
     return {
       costiMusicisti,
@@ -489,20 +489,15 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       costoTrasferta,
       costoPernottamento,
       totaleCostiBase,
-      prezzoNetto,
-      prezzoLordo,
-      commissioneWP,
-      commissioneFTM,
-      extraScontoVal,
       maggiorazioneAgenziaVal,
-      totaleFinale,
+      commissioneWPVal,
+      commissioneFTMVal,
+      prezzoFinale,
+      prezzoLordo,
+      scontoPerTe,
       margineAgenzia
     };
   }, [formData]);
-
-  const prezzoFatturato = Math.round(calc.prezzoLordo);
-  const prezzoFinale = Math.round(calc.totaleFinale);
-  const scontoPerTe = Math.round(prezzoFinale * 0.7);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -514,7 +509,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       type: formData.type,
       date: formData.date || 'Da definire',
       location: formData.address || 'Da definire',
-      total: calc.totaleFinale,
+      total: calc.prezzoFinale,
       status: formData._editStatus || 'In attesa', 
       formData: { ...formData }
     };
@@ -612,23 +607,17 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 
     y += 2;
     addSection('Commissioni e Sconti');
-    addLine('Commissione Wedding Planner', formData.usaCommWP ? `${formData.percCommWP}% (${euro(calc.commissioneWP)})` : 'NO');
-    addLine('Commissione Fix The Music', formData.usaCommFTM ? `${formData.percCommFTM}% (${euro(calc.commissioneFTM)})` : 'NO');
-    addLine('Extra Sconto', formData.usaExtraSconto ? `${formData.percExtraSconto}% (-${euro(calc.extraScontoVal)})` : 'NO');
-    addLine('Maggiorazione Agenzia', formData.usaMaggAgenzia ? `${formData.percMaggAgenzia}% (${euro(calc.maggiorazioneAgenziaVal)})` : 'NO');
-    addLine('Sconto Manuale', euro(formData.sconto));
+    addLine('Maggiorazione Agenzia', formData.usaMaggAgenzia ? `${formData.percMaggAgenzia}% (+${euro(Math.round(calc.maggiorazioneAgenziaVal))})` : 'NO');
+    addLine('Commissione Wedding Planner', formData.usaCommWP ? `${formData.percCommWP}% (+${euro(Math.round(calc.commissioneWPVal))})` : 'NO');
+    addLine('Commissione Fix The Music', formData.usaCommFTM ? `${formData.percCommFTM}% (+${euro(Math.round(calc.commissioneFTMVal))})` : 'NO');
 
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(calc.totaleCostiBase));
-    addLine('Prezzo Netto', euro(calc.prezzoNetto));
-    addLine('Prezzo Lordo', euro(calc.prezzoLordo));
-    addLine('Subtotale (pre-sconto manuale)', euro(calc.totaleFinale + formData.sconto));
-    addLine('Totale Finale (escl. IVA)', euro(calc.totaleFinale));
-    addLine('Prezzo Fatturato', euro(prezzoFatturato));
-    addLine('Prezzo Finale Cliente', `${euro(prezzoFinale)} + IVA`);
-    addLine('Sconto per Te', `${euro(scontoPerTe)} + IVA`);
-    addLine('Margine Agenzia Stimato', euro(calc.margineAgenzia));
+    addLine('① Prezzo Finale Cliente', `${euro(Math.round(calc.prezzoFinale))} + IVA`);
+    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(calc.prezzoLordo))} + IVA`);
+    addLine('③ Sconto per Te (×0.8)', `${euro(Math.round(calc.scontoPerTe))} + IVA`);
+    addLine('Margine Agenzia Stimato', euro(Math.round(calc.margineAgenzia)));
 
     pdf.save(`Report_Interno_${reportId}.pdf`);
   };
@@ -1013,21 +1002,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" name="usaExtraSconto" checked={formData.usaExtraSconto} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                      <span className="text-sm font-medium text-slate-700">Extra Sconto</span>
-                    </label>
-                    {formData.usaExtraSconto && (
-                      <div className="flex items-center gap-2">
-                        <input type="number" name="percExtraSconto" min="0" max="100" value={formData.percExtraSconto} onChange={handleChange} className="w-20 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm" />
-                        <span className="text-sm text-slate-500">%</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" name="usaMaggAgenzia" checked={formData.usaMaggAgenzia} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
                       <span className="text-sm font-medium text-slate-700">Maggiorazione Agenzia</span>
                     </label>
@@ -1111,34 +1085,22 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                 </div>
               )}
 
-              {calc.commissioneWP > 0 && (
+              {calc.maggiorazioneAgenziaVal > 0 && (
                 <div className="flex justify-between items-center text-yellow-400 pt-2">
-                  <span>Comm. Wedding Planner ({formData.percCommWP}%)</span>
-                  <span>+ € {calc.commissioneWP.toLocaleString('it-IT', {maximumFractionDigits: 0})}</span>
+                  <span>Magg. Agenzia ({formData.percMaggAgenzia}%)</span>
+                  <span>+ € {Math.round(calc.maggiorazioneAgenziaVal).toLocaleString('it-IT')}</span>
                 </div>
               )}
-              {calc.commissioneFTM > 0 && (
+              {calc.commissioneWPVal > 0 && (
+                <div className="flex justify-between items-center text-yellow-400">
+                  <span>Comm. Wedding Planner ({formData.percCommWP}%)</span>
+                  <span>+ € {Math.round(calc.commissioneWPVal).toLocaleString('it-IT')}</span>
+                </div>
+              )}
+              {calc.commissioneFTMVal > 0 && (
                 <div className="flex justify-between items-center text-yellow-400">
                   <span>Comm. Fix The Music ({formData.percCommFTM}%)</span>
-                  <span>+ € {calc.commissioneFTM.toLocaleString('it-IT', {maximumFractionDigits: 0})}</span>
-                </div>
-              )}
-              {calc.extraScontoVal > 0 && (
-                <div className="flex justify-between items-center text-red-400">
-                  <span>Extra Sconto ({formData.percExtraSconto}%)</span>
-                  <span>- € {calc.extraScontoVal.toLocaleString('it-IT', {maximumFractionDigits: 0})}</span>
-                </div>
-              )}
-              {calc.maggiorazioneAgenziaVal > 0 && (
-                <div className="flex justify-between items-center text-yellow-400">
-                  <span>Maggiorazione Agenzia ({formData.percMaggAgenzia}%)</span>
-                  <span>+ € {calc.maggiorazioneAgenziaVal.toLocaleString('it-IT', {maximumFractionDigits: 0})}</span>
-                </div>
-              )}
-              {formData.sconto > 0 && (
-                <div className="flex justify-between items-center text-red-400">
-                  <span>Sconto Applicato</span>
-                  <span>- € {formData.sconto.toLocaleString('it-IT')}</span>
+                  <span>+ € {Math.round(calc.commissioneFTMVal).toLocaleString('it-IT')}</span>
                 </div>
               )}
             </div>
@@ -1146,23 +1108,23 @@ function QuoteForm({ onCancel, onSave, initialData }) {
             {/* TOTALI FINALI */}
             <div className="bg-slate-900 rounded-xl p-4 border border-slate-700 space-y-4">
               <div>
-                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Prezzo Finale</p>
+                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">① Prezzo Finale Cliente</p>
                 <div className="text-3xl font-bold text-white">
-                  € {prezzoFinale.toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA</span>
+                  € {Math.round(calc.prezzoFinale).toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
-                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Prezzo Fatturato</p>
+                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">② Prezzo Lordo (÷ 0.6)</p>
                 <div className="text-2xl font-bold text-indigo-300">
-                  € {prezzoFatturato.toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA</span>
+                  € {Math.round(calc.prezzoLordo).toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
-                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Sconto per Te</p>
+                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">③ Sconto per Te (× 0.8)</p>
                 <div className="text-2xl font-bold text-emerald-300">
-                  € {scontoPerTe.toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA</span>
+                  € {Math.round(calc.scontoPerTe).toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA</span>
                 </div>
               </div>
 
@@ -1717,20 +1679,20 @@ export default function App() {
       : 0;
 
     const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
-    const maggiorazioneAgenziaVal = fd.usaMaggAgenzia ? totaleCostiBase * (Number(fd.percMaggAgenzia || 0) / 100) : 0;
-    const baseNetto = totaleCostiBase + maggiorazioneAgenziaVal;
-    const extraScontoVal = fd.usaExtraSconto ? baseNetto * (Number(fd.percExtraSconto || 0) / 100) : 0;
-    const prezzoNetto = baseNetto - extraScontoVal;
-    const prezzoLordo = prezzoNetto / 0.6;
-    const commissioneWP = fd.usaCommWP ? prezzoLordo * (Number(fd.percCommWP || 0) / 100) : 0;
-    const commissioneFTM = fd.usaCommFTM ? prezzoLordo * (Number(fd.percCommFTM || 0) / 100) : 0;
-    const scontoManuale = Number(fd.sconto || 0);
-    const subTotale = prezzoLordo + commissioneWP + commissioneFTM + costoTrasferta + costoPernottamento;
-    const totaleFinale = subTotale - scontoManuale;
-    const prezzoFatturato = Math.round(prezzoLordo);
-    const prezzoFinale = Math.round(totaleFinale);
-    const scontoPerTe = Math.round(prezzoFinale * 0.7);
-    const margineAgenzia = totaleFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
+    const prezzoServiziMaggiorato = fd.usaMaggAgenzia
+      ? totaleCostiBase / (1 - Number(fd.percMaggAgenzia || 0) / 100)
+      : totaleCostiBase;
+    const maggiorazioneAgenziaVal = prezzoServiziMaggiorato - totaleCostiBase;
+    let prezzoFinale = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
+    const preFTM = prezzoFinale;
+    if (fd.usaCommFTM) prezzoFinale = prezzoFinale / (1 - Number(fd.percCommFTM || 0) / 100);
+    const commissioneFTMVal = prezzoFinale - preFTM;
+    const preWP = prezzoFinale;
+    if (fd.usaCommWP) prezzoFinale = prezzoFinale / (1 - Number(fd.percCommWP || 0) / 100);
+    const commissioneWPVal = prezzoFinale - preWP;
+    const prezzoLordo = prezzoFinale / 0.6;
+    const scontoPerTe = Math.round(prezzoLordo * 0.8);
+    const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
 
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -1820,23 +1782,17 @@ export default function App() {
 
     y += 2;
     addSection('Commissioni e Sconti');
-    addLine('Commissione Wedding Planner', fd.usaCommWP ? `${fd.percCommWP}% (${euro(commissioneWP)})` : 'NO');
-    addLine('Commissione Fix The Music', fd.usaCommFTM ? `${fd.percCommFTM}% (${euro(commissioneFTM)})` : 'NO');
-    addLine('Extra Sconto', fd.usaExtraSconto ? `${fd.percExtraSconto}% (-${euro(extraScontoVal)})` : 'NO');
-    addLine('Maggiorazione Agenzia', fd.usaMaggAgenzia ? `${fd.percMaggAgenzia}% (${euro(maggiorazioneAgenziaVal)})` : 'NO');
-    addLine('Sconto Manuale', euro(scontoManuale));
+    addLine('Maggiorazione Agenzia', fd.usaMaggAgenzia ? `${fd.percMaggAgenzia}% (+${euro(Math.round(maggiorazioneAgenziaVal))})` : 'NO');
+    addLine('Commissione Wedding Planner', fd.usaCommWP ? `${fd.percCommWP}% (+${euro(Math.round(commissioneWPVal))})` : 'NO');
+    addLine('Commissione Fix The Music', fd.usaCommFTM ? `${fd.percCommFTM}% (+${euro(Math.round(commissioneFTMVal))})` : 'NO');
 
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(totaleCostiBase));
-    addLine('Prezzo Netto', euro(prezzoNetto));
-    addLine('Prezzo Lordo', euro(prezzoLordo));
-    addLine('Subtotale (pre-sconto manuale)', euro(subTotale));
-    addLine('Totale Finale (escl. IVA)', euro(totaleFinale));
-    addLine('Prezzo Fatturato', euro(prezzoFatturato));
-    addLine('Prezzo Finale Cliente', `${euro(prezzoFinale)} + IVA`);
-    addLine('Sconto per Te', `${euro(scontoPerTe)} + IVA`);
-    addLine('Margine Agenzia Stimato', euro(margineAgenzia));
+    addLine('① Prezzo Finale Cliente', `${euro(Math.round(prezzoFinale))} + IVA`);
+    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(prezzoLordo))} + IVA`);
+    addLine('③ Sconto per Te (×0.8)', `${euro(scontoPerTe)} + IVA`);
+    addLine('Margine Agenzia Stimato', euro(Math.round(margineAgenzia)));
 
     pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
   };

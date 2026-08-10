@@ -1,16 +1,12 @@
 ### RIEPILOGO PREZZI
 prezzo servizi= proposta musicale + costo cerimonia + impianti + dj + event coordinator + eventuali brani su richiesta + costo extra 
-commissione agenzia =  (servizi*%inserita)
-extrasconto?
-prezzo netto = servizi+commissione - extra sconto sul netto
+prezzo servizi maggiorato = prezzo servizi + commissione agenzia =  (servizi/1-%inserita) (di solito 25%)
 
-prezzo lordo = prezzo netto / 0.6 
+prezzo finale = prezzo servizi maggiorato + costi trasferta 
+con commissione wedding = finale/(1-%inserita) (di solito 10%)
+con commissione fix the music = finale/0.82
+prezzo lordo = prezzo finale++ / 0.6 
 
-commissione wedding= lordo*%inserita
-commissione fix the music = lordo*%inserita
+scontro per te = prezzo lordo * 0.8
 
-prezzo finale = prezzo lordo + commissioni + costi trasferta + iva
-
-l'iva quando la calcoli? sul prezzo finale o sul prezzo lordo?
-
-scontro per te = prezzo finale * 0.7
+extrasconto? TODO RIMUOVERE
