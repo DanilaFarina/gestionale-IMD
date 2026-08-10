@@ -614,9 +614,9 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(calc.totaleCostiBase));
-    addLine('① Prezzo Finale Cliente', `${euro(Math.round(calc.prezzoFinale))} + IVA`);
-    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(calc.prezzoLordo))} + IVA`);
-    addLine('③ Sconto per Te (×0.8)', `${euro(Math.round(calc.scontoPerTe))} + IVA`);
+    addLine('① Prezzo Finale Cliente', `${euro(Math.round(calc.prezzoFinale))} + IVA 22%`);
+    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(calc.prezzoLordo))} + IVA 22%`);
+    addLine('③ Sconto per Te (×0.8)', `${euro(Math.round(calc.scontoPerTe))} + IVA 22%`);
     addLine('Margine Agenzia Stimato', euro(Math.round(calc.margineAgenzia)));
 
     pdf.save(`Report_Interno_${reportId}.pdf`);
@@ -1110,21 +1110,21 @@ function QuoteForm({ onCancel, onSave, initialData }) {
               <div>
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">① Prezzo Finale Cliente</p>
                 <div className="text-3xl font-bold text-white">
-                  € {Math.round(calc.prezzoFinale).toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA</span>
+                  € {Math.round(calc.prezzoFinale).toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA 22%</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">② Prezzo Lordo (÷ 0.6)</p>
                 <div className="text-2xl font-bold text-indigo-300">
-                  € {Math.round(calc.prezzoLordo).toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA</span>
+                  € {Math.round(calc.prezzoLordo).toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA 22%</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">③ Sconto per Te (× 0.8)</p>
                 <div className="text-2xl font-bold text-emerald-300">
-                  € {Math.round(calc.scontoPerTe).toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA</span>
+                  € {Math.round(calc.scontoPerTe).toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA 22%</span>
                 </div>
               </div>
 
@@ -1221,12 +1221,12 @@ function QuotePDF({ quote, servizi, prezzoFinale, scontoperTe, logoPng }) {
         <View style={pdfStyles.ecoBox}>
           <View style={pdfStyles.ecoRow}>
             <Text style={pdfStyles.ecoLabel}>Prezzo finale</Text>
-            <Text style={pdfStyles.ecoValue}>€ {prezzoFinale.toLocaleString('it-IT')} + IVA</Text>
+            <Text style={pdfStyles.ecoValue}>€ {prezzoFinale.toLocaleString('it-IT')} + IVA 22%</Text>
           </View>
           <View style={pdfStyles.ecoDivider} />
           <View style={pdfStyles.ecoRow}>
             <Text style={pdfStyles.ecoLabelStrong}>Prezzo riservato a te</Text>
-            <Text style={pdfStyles.ecoValueBig}>€ {scontoperTe.toLocaleString('it-IT')} + IVA</Text>
+            <Text style={pdfStyles.ecoValueBig}>€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</Text>
           </View>
         </View>
 
@@ -1432,7 +1432,7 @@ function PrintView({ quote, onBack }) {
             {/* Prezzo finale con IVA esposta a parte */}
             <div className="flex justify-between items-baseline">
               <span className="text-stone-600 font-sans text-sm">Prezzo finale</span>
-              <span className="text-2xl font-light text-stone-800">€ {prezzoFinale.toLocaleString('it-IT')} + IVA</span>
+              <span className="text-2xl font-light text-stone-800">€ {prezzoFinale.toLocaleString('it-IT')} + IVA 22%</span>
             </div>
 
             <div className="w-full h-px bg-stone-200"></div>
@@ -1442,7 +1442,7 @@ function PrintView({ quote, onBack }) {
               <div>
                 <span className="text-stone-800 font-sans text-sm font-medium">Prezzo riservato a te</span>
               </div>
-              <span className="text-3xl font-light text-stone-900">€ {scontoperTe.toLocaleString('it-IT')} + IVA</span>
+              <span className="text-3xl font-light text-stone-900">€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</span>
             </div>
           </div>
         </div>
@@ -1789,9 +1789,9 @@ export default function App() {
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(totaleCostiBase));
-    addLine('① Prezzo Finale Cliente', `${euro(Math.round(prezzoFinale))} + IVA`);
-    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(prezzoLordo))} + IVA`);
-    addLine('③ Sconto per Te (×0.8)', `${euro(scontoPerTe)} + IVA`);
+    addLine('① Prezzo Finale Cliente', `${euro(Math.round(prezzoFinale))} + IVA 22%`);
+    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(prezzoLordo))} + IVA 22%`);
+    addLine('③ Sconto per Te (×0.8)', `${euro(scontoPerTe)} + IVA 22%`);
     addLine('Margine Agenzia Stimato', euro(Math.round(margineAgenzia)));
 
     pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
