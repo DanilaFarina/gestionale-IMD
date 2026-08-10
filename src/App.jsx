@@ -28,6 +28,25 @@ import {
   Mail
 } from 'lucide-react';
 
+const PRICE_ROUNDING_STEP = 50;
+
+function roundPrice(value, step = PRICE_ROUNDING_STEP) {
+  const amount = Number(value) || 0;
+  if (amount === 0) return 0;
+
+  const lower = Math.floor(amount / step) * step;
+  const upper = lower + step;
+
+  return amount - lower < upper - amount ? lower : upper;
+}
+
+function formatMultiplier(value) {
+  return Number(value || 0).toLocaleString('it-IT', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
@@ -305,8 +324,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     usaExtraSconto: false,
     percExtraSconto: 5,
     usaMaggAgenzia: false,
-    percMaggAgenzia: 10,
-    sconto: 0
+    percMaggAgenzia: 20,
+    sconto: 0.7
   };
   const [formData, setFormData] = useState(initialData ? { ...defaults, ...initialData } : defaults);
 
@@ -460,17 +479,18 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     const maggiorazioneAgenziaVal = prezzoServiziMaggiorato - totaleCostiBase;
 
     // 2. Prezzo finale = servizi maggiorati + trasferta, FTM prima poi WP
-    let prezzoFinale = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
-    const preCommFTM = prezzoFinale;
-    if (formData.usaCommFTM) prezzoFinale = prezzoFinale / (1 - n(formData.percCommFTM) / 100);
-    const commissioneFTMVal = prezzoFinale - preCommFTM;
-    const preCommWP = prezzoFinale;
-    if (formData.usaCommWP) prezzoFinale = prezzoFinale / (1 - n(formData.percCommWP) / 100);
-    const commissioneWPVal = prezzoFinale - preCommWP;
+    let prezzoFinaleRaw = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
+    const preCommFTM = prezzoFinaleRaw;
+    if (formData.usaCommFTM) prezzoFinaleRaw = prezzoFinaleRaw / (1 - n(formData.percCommFTM) / 100);
+    const commissioneFTMVal = prezzoFinaleRaw - preCommFTM;
+    const preCommWP = prezzoFinaleRaw;
+    if (formData.usaCommWP) prezzoFinaleRaw = prezzoFinaleRaw / (1 - n(formData.percCommWP) / 100);
+    const commissioneWPVal = prezzoFinaleRaw - preCommWP;
 
-    // 3. Lordo (÷0.6) e sconto per te (×0.8)
-    const prezzoLordo = prezzoFinale / 0.6;
-    const scontoPerTe = prezzoLordo * 0.8;
+    // 3. Tutti i prezzi finali vengono approssimati al multiplo di 50 piu vicino.
+    const prezzoFinale = roundPrice(prezzoFinaleRaw);
+    const prezzoLordo = roundPrice(prezzoFinale / 0.6);
+    const scontoPerTe = roundPrice(prezzoLordo * n(formData.sconto));
     const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
 
     return {
@@ -611,9 +631,9 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     y += 2;
     addSection('Riepilogo Economico');
     addLine('Totale Costi Base', euro(calc.totaleCostiBase));
-    addLine('① Prezzo Finale Cliente', `${euro(Math.round(calc.prezzoFinale))} + IVA 22%`);
-    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(calc.prezzoLordo))} + IVA 22%`);
-    addLine('③ Sconto per Te (×0.8)', `${euro(Math.round(calc.scontoPerTe))} + IVA 22%`);
+    addLine('① Prezzo Finale Cliente', `${euro(calc.prezzoFinale)} + IVA 22%`);
+    addLine('② Prezzo Lordo (÷0.6)', `${euro(calc.prezzoLordo)} + IVA 22%`);
+    addLine(`③ Sconto per Te (×${formatMultiplier(formData.sconto)})`, `${euro(calc.scontoPerTe)} + IVA 22%`);
     addLine('Margine Agenzia Stimato', euro(Math.round(calc.margineAgenzia)));
 
     pdf.save(`Report_Interno_${reportId}.pdf`);
@@ -1006,6 +1026,19 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     )}
                   </div>
                 </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">Sconto per Te</p>
+                      <p className="text-xs text-slate-500">Moltiplicatore applicato al prezzo lordo.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="number" name="sconto" min="0" max="1" step="0.01" value={formData.sconto} onChange={handleChange} className="w-20 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                      <span className="text-sm text-slate-500">x</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1103,21 +1136,21 @@ function QuoteForm({ onCancel, onSave, initialData }) {
               <div>
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">① Prezzo Finale Cliente</p>
                 <div className="text-3xl font-bold text-white">
-                  € {Math.round(calc.prezzoFinale).toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA 22%</span>
+                  € {calc.prezzoFinale.toLocaleString('it-IT')} <span className="text-lg font-medium text-slate-300">+ IVA 22%</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
                 <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">② Prezzo Lordo (÷ 0.6)</p>
                 <div className="text-2xl font-bold text-indigo-300">
-                  € {Math.round(calc.prezzoLordo).toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA 22%</span>
+                  € {calc.prezzoLordo.toLocaleString('it-IT')} <span className="text-base font-medium text-indigo-200">+ IVA 22%</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-700 pt-3">
-                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">③ Sconto per Te (× 0.8)</p>
+                <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">③ Sconto per Te (× {formatMultiplier(formData.sconto)})</p>
                 <div className="text-2xl font-bold text-emerald-300">
-                  € {Math.round(calc.scontoPerTe).toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA 22%</span>
+                  € {calc.scontoPerTe.toLocaleString('it-IT')} <span className="text-base font-medium text-emerald-200">+ IVA 22%</span>
                 </div>
               </div>
 
@@ -1245,9 +1278,10 @@ function PrintView({ quote, onBack }) {
   const dettagliFormazione = '';
 
   // Calcolo prezzi finali (IVA non calcolata numericamente)
-  const prezzoFatturato = Math.round(quote.total);
-  const prezzoFinale = Math.round(quote.total);
-  const scontoperTe = Math.round(prezzoFinale * 0.7);
+  const moltiplicatoreSconto = Number(fd.sconto || 0.7);
+  const prezzoFatturato = roundPrice(quote.total);
+  const prezzoFinale = roundPrice(quote.total);
+  const scontoperTe = roundPrice(prezzoFinale * moltiplicatoreSconto);
 
   // Costruisci lista servizi dinamica dal formData
   const servizi = [];
@@ -1669,15 +1703,16 @@ export default function App() {
       ? totaleCostiBase / (1 - Number(fd.percMaggAgenzia || 0) / 100)
       : totaleCostiBase;
     const maggiorazioneAgenziaVal = prezzoServiziMaggiorato - totaleCostiBase;
-    let prezzoFinale = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
-    const preFTM = prezzoFinale;
-    if (fd.usaCommFTM) prezzoFinale = prezzoFinale / (1 - Number(fd.percCommFTM || 0) / 100);
-    const commissioneFTMVal = prezzoFinale - preFTM;
-    const preWP = prezzoFinale;
-    if (fd.usaCommWP) prezzoFinale = prezzoFinale / (1 - Number(fd.percCommWP || 0) / 100);
-    const commissioneWPVal = prezzoFinale - preWP;
-    const prezzoLordo = prezzoFinale / 0.6;
-    const scontoPerTe = Math.round(prezzoLordo * 0.8);
+    let prezzoFinaleRaw = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
+    const preFTM = prezzoFinaleRaw;
+    if (fd.usaCommFTM) prezzoFinaleRaw = prezzoFinaleRaw / (1 - Number(fd.percCommFTM || 0) / 100);
+    const commissioneFTMVal = prezzoFinaleRaw - preFTM;
+    const preWP = prezzoFinaleRaw;
+    if (fd.usaCommWP) prezzoFinaleRaw = prezzoFinaleRaw / (1 - Number(fd.percCommWP || 0) / 100);
+    const commissioneWPVal = prezzoFinaleRaw - preWP;
+    const prezzoFinale = roundPrice(prezzoFinaleRaw);
+    const prezzoLordo = roundPrice(prezzoFinale / 0.6);
+    const scontoPerTe = roundPrice(prezzoLordo * Number(fd.sconto || 0.7));
     const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
 
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -1775,7 +1810,7 @@ export default function App() {
     addLine('Totale Costi Base', euro(totaleCostiBase));
     addLine('① Prezzo Finale Cliente', `${euro(Math.round(prezzoFinale))} + IVA 22%`);
     addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(prezzoLordo))} + IVA 22%`);
-    addLine('③ Sconto per Te (×0.8)', `${euro(scontoPerTe)} + IVA 22%`);
+    addLine(`③ Sconto per Te (×${formatMultiplier(fd.sconto || 0.7)})`, `${euro(scontoPerTe)} + IVA 22%`);
     addLine('Margine Agenzia Stimato', euro(Math.round(margineAgenzia)));
 
     pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
