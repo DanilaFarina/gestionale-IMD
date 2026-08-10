@@ -153,7 +153,6 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
               <tr>
                 <th className="px-6 py-4">ID</th>
                 <th className="px-6 py-4">Dettagli Evento</th>
-                <th className="px-6 py-4">Formazione</th>
                 <th className="px-6 py-4">Totale (Escl. IVA)</th>
                 <th className="px-6 py-4">Stato</th>
                 <th className="px-6 py-4 text-right">Azioni</th>
@@ -171,7 +170,6 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                         <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location} ({quote.type})</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-700">{quote.band}</td>
                     <td className="px-6 py-4 font-medium text-slate-900">€{quote.total.toLocaleString('it-IT')}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(quote.status)}`}>
@@ -275,6 +273,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     type: 'Matrimonio',
     band: '',
     numMomenti: 1,
+    momenti: [{ titolo: '', descrizione: '' }],
     numPostazioni: 1,
     numMusicisti: 3,
     cachetMusicista: 200,
@@ -321,6 +320,22 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : (type === 'number' ? Number(value) : value)
+    }));
+  };
+
+  const handleMomentiCount = (delta) => {
+    setFormData(prev => {
+      const n = Math.max(1, prev.numMomenti + delta);
+      const momenti = [...(prev.momenti || [])];
+      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '' });
+      return { ...prev, numMomenti: n, momenti: momenti.slice(0, n) };
+    });
+  };
+
+  const handleMomentoField = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      momenti: prev.momenti.map((m, i) => i === index ? { ...m, [field]: value } : m)
     }));
   };
 
@@ -498,7 +513,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       type: formData.type,
       date: formData.date || 'Da definire',
       location: formData.address || 'Da definire',
-      band: formData.band || '',
       total: calc.totaleFinale,
       status: formData._editStatus || 'In attesa', 
       formData: { ...formData }
@@ -563,13 +577,18 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     addLine('Data Evento', formData.date || '-');
     addLine('Indirizzo', formData.address || '-');
     addLine('Numero Momenti', formData.numMomenti);
+    if (formData.momenti?.length) {
+      formData.momenti.forEach((m, i) => {
+        addLine(`  Momento ${i + 1}`, m.titolo || '-');
+        if (m.descrizione) addLine('', m.descrizione);
+      });
+    }
     addLine('Numero Postazioni', formData.numPostazioni);
 
     y += 2;
     addSection('Servizio Musicale e Staffing');
     addLine('Numero Musicisti', formData.numMusicisti);
-    addLine('Formazione', formData.band || '-');
-    addLine('Cachet per Musicista', euro(formData.cachetMusicista));
+    addLine('Numero Musicisti', formData.numMusicisti);
     addLine('Costo Cerimonia', euro(formData.costoCerimonia));
     addLine('Costo Extra', euro(formData.costoExtra));
     addLine('Numero Impianti Audio', formData.numImpianti);
@@ -668,17 +687,40 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Via, nr civico, CAP, Città</label>
                     <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="es. Via Roma 1, 53100 Siena" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Numero Momenti</label>
-                    <input type="number" name="numMomenti" min="1" value={formData.numMomenti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  <div className="md:col-span-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-medium text-slate-700">Momenti Musicali</label>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => handleMomentiCount(-1)} className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold flex items-center justify-center transition-colors">−</button>
+                        <span className="w-5 text-center font-semibold text-slate-800">{formData.numMomenti}</span>
+                        <button type="button" onClick={() => handleMomentiCount(1)} className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold flex items-center justify-center transition-colors">+</button>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {(formData.momenti || []).map((m, i) => (
+                        <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Momento {i + 1}</p>
+                          <input
+                            type="text"
+                            value={m.titolo}
+                            onChange={e => handleMomentoField(i, 'titolo', e.target.value)}
+                            placeholder="es. Cerimonia, Cocktail, Cena..."
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <textarea
+                            rows={2}
+                            value={m.descrizione}
+                            onChange={e => handleMomentoField(i, 'descrizione', e.target.value)}
+                            placeholder="Breve descrizione del momento musicale"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 resize-none"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Numero Postazioni</label>
                     <input type="number" name="numPostazioni" min="1" value={formData.numPostazioni} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dettagli Formazione (opzionale — per PDF)</label>
-                    <textarea name="band" rows={3} value={formData.band} onChange={handleChange} placeholder="es. Contrabbasso, Batteria, Piano + DJ" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                 </div>
               </div>
@@ -1244,7 +1286,7 @@ function QuotePDF({ quote, servizi, prezzoFinale, scontoperTe, logoPng }) {
 function PrintView({ quote, onBack }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const fd = quote.formData || {};
-  const dettagliFormazione = (fd.band || '').trim();
+  const dettagliFormazione = '';
 
   // Calcolo prezzi finali (IVA non calcolata numericamente)
   const prezzoFatturato = Math.round(quote.total);
@@ -1262,10 +1304,16 @@ function PrintView({ quote, onBack }) {
   }
 
   if (fd.numMomenti > 1) {
-    servizi.push({
-      titolo: `${fd.numMomenti} momenti musicali`,
-      desc: 'Set musicali suddivisi in base alla scaletta dell\'evento'
-    });
+    if (fd.momenti?.some(m => m.titolo)) {
+      fd.momenti.forEach(m => {
+        if (m.titolo) servizi.push({ titolo: m.titolo, desc: m.descrizione || '' });
+      });
+    } else {
+      servizi.push({
+        titolo: `${fd.numMomenti} momenti musicali`,
+        desc: 'Set musicali suddivisi in base alla scaletta dell\'evento'
+      });
+    }
   }
 
   if (fd.numPostazioni > 1) {
@@ -1540,8 +1588,12 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedQuote, setSelectedQuote] = useState(null);
 
-  // Gestione sessione (login/logout)
+  // In locale bypassa l'auth; in produzione usa Supabase Magic Link
   useEffect(() => {
+    if (import.meta.env.DEV) {
+      setAuthLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
@@ -1569,7 +1621,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session) fetchQuotes();
+    if (import.meta.env.DEV || session) fetchQuotes();
   }, [session, fetchQuotes]);
 
   const handleLogout = async () => {
@@ -1733,13 +1785,18 @@ export default function App() {
     addLine('Data Evento', fd.date || quote.date || '-');
     addLine('Indirizzo', fd.address || quote.location || '-');
     addLine('Numero Momenti', fd.numMomenti);
+    if (fd.momenti?.length) {
+      fd.momenti.forEach((m, i) => {
+        addLine(`  Momento ${i + 1}`, m.titolo || '-');
+        if (m.descrizione) addLine('', m.descrizione);
+      });
+    }
     addLine('Numero Postazioni', fd.numPostazioni);
 
     y += 2;
     addSection('Servizio Musicale e Staffing');
     addLine('Numero Musicisti', fd.numMusicisti);
-    addLine('Formazione', fd.band || '-');
-    addLine('Cachet per Musicista', euro(fd.cachetMusicista));
+    addLine('Numero Musicisti', fd.numMusicisti);
     addLine('Costo Cerimonia', euro(fd.costoCerimonia));
     addLine('Costo Extra', euro(fd.costoExtra));
     addLine('Numero Impianti Audio', fd.numImpianti);
@@ -1791,25 +1848,27 @@ export default function App() {
       </div>
     );
   }
-  if (!session) {
+  if (!import.meta.env.DEV && !session) {
     return <Login />;
   }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans p-4 md:p-8">
       <div className="max-w-[1600px] mx-auto">
-        {/* Barra utente + logout */}
-        <div className="flex justify-end mb-4">
-          <div className="flex items-center gap-3 text-sm text-slate-500">
-            <span>{session.user.email}</span>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
-            >
-              <LogOut size={16} /> Esci
-            </button>
+        {/* Barra utente + logout (solo in produzione) */}
+        {!import.meta.env.DEV && session && (
+          <div className="flex justify-end mb-4">
+            <div className="flex items-center gap-3 text-sm text-slate-500">
+              <span>{session.user.email}</span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
+              >
+                <LogOut size={16} /> Esci
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {currentView === 'dashboard' ? (
           <Dashboard 
