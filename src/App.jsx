@@ -274,7 +274,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     band: '',
     numMomenti: 1,
     momenti: [{ titolo: '', descrizione: '' }],
-    numPostazioni: 1,
     numMusicisti: 3,
     cachetMusicista: 200,
     costoCerimonia: 0,
@@ -579,8 +578,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
         if (m.descrizione) addLine('', m.descrizione);
       });
     }
-    addLine('Numero Postazioni', formData.numPostazioni);
-
     y += 2;
     addSection('Servizio Musicale e Staffing');
     addLine('Numero Musicisti', formData.numMusicisti);
@@ -707,10 +704,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                         </div>
                       ))}
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Numero Postazioni</label>
-                    <input type="number" name="numPostazioni" min="1" value={formData.numPostazioni} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                 </div>
               </div>
@@ -1279,13 +1272,6 @@ function PrintView({ quote, onBack }) {
     }
   }
 
-  if (fd.numPostazioni > 1) {
-    servizi.push({
-      titolo: `${fd.numPostazioni} postazioni`,
-      desc: 'Setup audio e strumentazione in più punti della location'
-    });
-  }
-
   servizi.push({
     titolo: `Impianto audio professionale${fd.numImpianti > 1 ? ` (×${fd.numImpianti})` : ''}`,
     desc: 'Amplificazione, mixer, casse e microfonazione completa'
@@ -1754,8 +1740,6 @@ export default function App() {
         if (m.descrizione) addLine('', m.descrizione);
       });
     }
-    addLine('Numero Postazioni', fd.numPostazioni);
-
     y += 2;
     addSection('Servizio Musicale e Staffing');
     addLine('Numero Musicisti', fd.numMusicisti);

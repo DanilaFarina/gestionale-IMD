@@ -1,3 +1,8 @@
+# Lanciare in locale
+npm run dev
+# Deployare
+npm run deploy
+
 # Deployato su git hub
 Per accedere usare questo link https://danilafarina.github.io/gestionale-IMD/
 
