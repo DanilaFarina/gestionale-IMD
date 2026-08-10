@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas-pro';
+import { Document, Page, View, Text, Image, StyleSheet, pdf } from '@react-pdf/renderer';
 import logoIMD from './assets/logo-imd.svg';
+import { supabase } from './supabaseClient';
 import { 
   Plus, 
   Edit, 
@@ -22,7 +23,9 @@ import {
   Briefcase,
   Printer,
   Car,
-  Users
+  Users,
+  LogOut,
+  Mail
 } from 'lucide-react';
 
 // ==========================================
@@ -497,7 +500,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       location: formData.address || 'Da definire',
       band: formData.band || '',
       total: calc.totaleFinale,
-      status: formData._editStatus || 'In attesa',
+      status: formData._editStatus || 'In attesa', 
       formData: { ...formData }
     };
     onSave(newQuote);
@@ -1144,6 +1147,87 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 }
 
 // ==========================================
+// DOCUMENTO PDF PREVENTIVO (vettoriale)
+// ==========================================
+const pdfStyles = StyleSheet.create({
+  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'Times-Roman', color: '#292524', fontSize: 11 },
+  logo: { width: 200, height: 133, alignSelf: 'center', marginBottom: 24, objectFit: 'contain' },
+  infoBlock: { marginBottom: 40 },
+  infoLine: { fontFamily: 'Helvetica', fontSize: 10, marginBottom: 3, color: '#292524' },
+  infoLabel: { color: '#a8a29e' },
+  sectionTitle: { fontFamily: 'Helvetica', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#a8a29e', marginBottom: 18 },
+  serviceRow: { flexDirection: 'row', marginBottom: 12 },
+  bullet: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#a8a29e', marginTop: 6, marginRight: 10 },
+  serviceTitle: { fontFamily: 'Times-Roman', fontSize: 12, color: '#292524' },
+  serviceDesc: { fontFamily: 'Helvetica', fontSize: 9, color: '#a8a29e', marginTop: 2 },
+  divider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 32 },
+  ecoBox: { backgroundColor: '#fafaf9', padding: 28 },
+  ecoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  ecoLabel: { fontFamily: 'Helvetica', fontSize: 10, color: '#57534e' },
+  ecoLabelStrong: { fontFamily: 'Helvetica', fontSize: 10, color: '#292524', fontWeight: 'bold' },
+  ecoValue: { fontSize: 20, color: '#292524' },
+  ecoValueBig: { fontSize: 26, color: '#1c1917' },
+  ecoDivider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 18 },
+  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Helvetica', fontSize: 8, color: '#a8a29e', textAlign: 'center', lineHeight: 1.5 },
+  footer: { marginTop: 32, alignItems: 'center' },
+  footerLine: { width: 32, height: 1, backgroundColor: '#d6d3d1', marginBottom: 12 },
+  footerBrand: { fontFamily: 'Helvetica', fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: '#d6d3d1' },
+});
+
+function QuotePDF({ quote, servizi, prezzoFinale, scontoperTe, logoPng }) {
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        {logoPng ? <Image style={pdfStyles.logo} src={logoPng} /> : null}
+
+        <View style={pdfStyles.infoBlock}>
+          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Preventivo - </Text>The IMD</Text>
+          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Intestatario: </Text>{quote.client}</Text>
+          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Location: </Text>{quote.location}</Text>
+          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Evento: </Text>{quote.type}</Text>
+          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Data: </Text>{quote.date}</Text>
+        </View>
+
+        <Text style={pdfStyles.sectionTitle}>Proposta Artistica</Text>
+        {servizi.map((s, i) => (
+          <View key={i} style={pdfStyles.serviceRow}>
+            <View style={pdfStyles.bullet} />
+            <View style={{ flex: 1 }}>
+              <Text style={pdfStyles.serviceTitle}>{s.titolo}</Text>
+              <Text style={pdfStyles.serviceDesc}>{s.desc}</Text>
+            </View>
+          </View>
+        ))}
+
+        <View style={pdfStyles.divider} />
+
+        <Text style={pdfStyles.sectionTitle}>Riepilogo economico</Text>
+        <View style={pdfStyles.ecoBox}>
+          <View style={pdfStyles.ecoRow}>
+            <Text style={pdfStyles.ecoLabel}>Prezzo finale</Text>
+            <Text style={pdfStyles.ecoValue}>€ {prezzoFinale.toLocaleString('it-IT')} + IVA</Text>
+          </View>
+          <View style={pdfStyles.ecoDivider} />
+          <View style={pdfStyles.ecoRow}>
+            <Text style={pdfStyles.ecoLabelStrong}>Prezzo riservato a te</Text>
+            <Text style={pdfStyles.ecoValueBig}>€ {scontoperTe.toLocaleString('it-IT')} + IVA</Text>
+          </View>
+        </View>
+
+        <Text style={pdfStyles.note}>
+          Il presente preventivo ha validità 30 giorni dalla data di emissione.
+        </Text>
+
+        <View style={pdfStyles.footer}>
+          <View style={pdfStyles.footerLine} />
+          <Text style={pdfStyles.footerBrand}>The Italian Music Designer</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+// ==========================================
 // COMPONENTE STAMPA / PDF
 // ==========================================
 function PrintView({ quote, onBack }) {
@@ -1244,41 +1328,22 @@ function PrintView({ quote, onBack }) {
   const handleDownloadPdf = async () => {
     setIsGenerating(true);
     try {
-      // Converti il logo SVG in PNG nel clone per html2canvas
-      const element = document.getElementById('preventivo-container');
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: async (clonedDoc) => {
-          const logoEl = clonedDoc.querySelector('#preventivo-container img');
-          if (logoEl) {
-            const pngDataUrl = await svgToPngDataUrl(logoEl.src);
-            if (pngDataUrl) logoEl.src = pngDataUrl;
-          }
-        }
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const imgWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      if (imgHeight > pageHeight - margin * 2) {
-        const scale = (pageHeight - margin * 2) / imgHeight;
-        const scaledWidth = imgWidth * scale;
-        const scaledHeight = imgHeight * scale;
-        const xOffset = (pageWidth - scaledWidth) / 2;
-        pdf.addImage(imgData, 'JPEG', xOffset, margin, scaledWidth, scaledHeight);
-      } else {
-        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
-      }
-
-      pdf.save(`Preventivo_${quote.id}.pdf`);
+      const logoPng = await svgToPngDataUrl(logoIMD);
+      const blob = await pdf(
+        <QuotePDF
+          quote={quote}
+          servizi={servizi}
+          prezzoFinale={prezzoFinale}
+          scontoperTe={scontoperTe}
+          logoPng={logoPng}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Preventivo_${quote.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Errore generazione PDF:', err);
       alert('Errore nella generazione del PDF: ' + err.message);
@@ -1379,31 +1444,145 @@ function PrintView({ quote, onBack }) {
 }
 
 // ==========================================
+// COMPONENTE LOGIN (Magic Link)
+// ==========================================
+function Login() {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      setSent(true);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 w-full max-w-md">
+        <div className="flex flex-col items-center mb-6">
+          <img src={logoIMD} alt="IMD Logo" className="h-24 w-auto mb-4" />
+          <h1 className="text-xl font-bold text-slate-900">Preventivi Eventi</h1>
+          <p className="text-slate-500 text-sm mt-1">Accedi per continuare</p>
+        </div>
+
+        {sent ? (
+          <div className="text-center bg-green-50 border border-green-200 rounded-xl p-6">
+            <Mail size={32} className="text-green-600 mx-auto mb-3" />
+            <p className="text-slate-800 font-medium">Controlla la tua email!</p>
+            <p className="text-slate-500 text-sm mt-1">
+              Ti abbiamo inviato un link di accesso a <strong>{email}</strong>. Cliccalo per entrare.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tuamail@esempio.com"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors disabled:opacity-70"
+            >
+              <Mail size={18} />
+              {loading ? 'Invio in corso...' : 'Invia link di accesso'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // COMPONENTE PRINCIPALE (ROUTING)
 // ==========================================
 export default function App() {
-  // Carica preventivi da localStorage (persistenza tra refresh)
-  const [quotes, setQuotes] = useState(() => {
-    try {
-      const saved = localStorage.getItem('imd-quotes');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  
-  // Salva su localStorage ogni volta che quotes cambia
-  useEffect(() => {
-    localStorage.setItem('imd-quotes', JSON.stringify(quotes));
-  }, [quotes]);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [quotes, setQuotes] = useState([]);
 
   // Gestione delle "Pagine": 'dashboard' | 'create' | 'print'
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedQuote, setSelectedQuote] = useState(null);
 
-  const handleApprove = (id) => {
+  // Gestione sessione (login/logout)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Carica i preventivi da Supabase (mappa form_data -> formData)
+  const fetchQuotes = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Errore caricamento preventivi:', error);
+      return;
+    }
+    setQuotes(data.map(({ form_data, created_at, ...rest }) => ({
+      ...rest,
+      formData: form_data
+    })));
+  }, []);
+
+  useEffect(() => {
+    if (session) fetchQuotes();
+  }, [session, fetchQuotes]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setQuotes([]);
+    setCurrentView('dashboard');
+    setSelectedQuote(null);
+  };
+
+  const handleApprove = async (id) => {
+    const { error } = await supabase.from('quotes').update({ status: 'Approvato' }).eq('id', id);
+    if (error) {
+      alert('Errore: ' + error.message);
+      return;
+    }
     setQuotes(quotes.map(q => q.id === id ? { ...q, status: 'Approvato' } : q));
   };
 
-  const handleArchive = (id) => {
+  const handleArchive = async (id) => {
+    const { error } = await supabase.from('quotes').update({ status: 'Archiviato' }).eq('id', id);
+    if (error) {
+      alert('Errore: ' + error.message);
+      return;
+    }
     setQuotes(quotes.map(q => q.id === id ? { ...q, status: 'Archiviato' } : q));
   };
 
@@ -1417,13 +1596,25 @@ export default function App() {
     }
   };
 
-  const handleSaveNewQuote = (newQuote) => {
-    setQuotes([...quotes, newQuote]);
+  const handleSaveNewQuote = async (newQuote) => {
+    const { formData, ...rest } = newQuote;
+    const { error } = await supabase.from('quotes').insert({ ...rest, form_data: formData });
+    if (error) {
+      alert('Errore nel salvataggio: ' + error.message);
+      return;
+    }
+    await fetchQuotes();
     setCurrentView('dashboard');
   };
 
-  const handleUpdateQuote = (updatedQuote) => {
-    setQuotes(quotes.map(q => q.id === updatedQuote.id ? updatedQuote : q));
+  const handleUpdateQuote = async (updatedQuote) => {
+    const { formData, ...rest } = updatedQuote;
+    const { error } = await supabase.from('quotes').update({ ...rest, form_data: formData }).eq('id', updatedQuote.id);
+    if (error) {
+      alert('Errore nell\'aggiornamento: ' + error.message);
+      return;
+    }
+    await fetchQuotes();
     setSelectedQuote(null);
     setCurrentView('dashboard');
   };
@@ -1581,9 +1772,34 @@ export default function App() {
     pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
   };
 
+  // Schermata di caricamento iniziale / login
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-500">
+        Caricamento...
+      </div>
+    );
+  }
+  if (!session) {
+    return <Login />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans p-4 md:p-8">
       <div className="max-w-[1600px] mx-auto">
+        {/* Barra utente + logout */}
+        <div className="flex justify-end mb-4">
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <span>{session.user.email}</span>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
+            >
+              <LogOut size={16} /> Esci
+            </button>
+          </div>
+        </div>
+
         {currentView === 'dashboard' ? (
           <Dashboard 
             quotes={quotes}
