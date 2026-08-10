@@ -1373,7 +1373,7 @@ function PrintView({ quote, onBack }) {
         
         {/* Header con logo e info a sinistra */}
         <div className="mb-8">
-          <img src={logoIMD} alt="The Italian Music Designer" className="h-48 w-auto mb-6 mx-auto" />
+          <img src={logoIMD} alt="The Italian Music Designer" className="h-48 w-auto mb-6 mx-auto block" />
           <div className="space-y-1 font-sans text-sm">
             <p className="text-stone-800"><span className="text-stone-400">Preventivo - </span> The IMD</p>
             <p className="text-stone-800"><span className="text-stone-400">Intestatario:</span> {quote.client}</p>
