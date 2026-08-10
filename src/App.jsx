@@ -325,7 +325,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     percExtraSconto: 5,
     usaMaggAgenzia: false,
     percMaggAgenzia: 20,
-    sconto: 0.7
+    sconto: 0.65
   };
   const [formData, setFormData] = useState(initialData ? { ...defaults, ...initialData } : defaults);
 
@@ -1278,7 +1278,7 @@ function PrintView({ quote, onBack }) {
   const dettagliFormazione = '';
 
   // Calcolo prezzi finali (IVA non calcolata numericamente)
-  const moltiplicatoreSconto = Number(fd.sconto || 0.7);
+  const moltiplicatoreSconto = Number(fd.sconto || 0.65);
   const prezzoFatturato = roundPrice(quote.total);
   const prezzoFinale = roundPrice(quote.total);
   const scontoperTe = roundPrice(prezzoFinale * moltiplicatoreSconto);
@@ -1712,7 +1712,7 @@ export default function App() {
     const commissioneWPVal = prezzoFinaleRaw - preWP;
     const prezzoFinale = roundPrice(prezzoFinaleRaw);
     const prezzoLordo = roundPrice(prezzoFinale / 0.6);
-    const scontoPerTe = roundPrice(prezzoLordo * Number(fd.sconto || 0.7));
+    const scontoPerTe = roundPrice(prezzoLordo * Number(fd.sconto || 0.65));
     const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
 
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -1810,7 +1810,7 @@ export default function App() {
     addLine('Totale Costi Base', euro(totaleCostiBase));
     addLine('① Prezzo Finale Cliente', `${euro(Math.round(prezzoFinale))} + IVA 22%`);
     addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(prezzoLordo))} + IVA 22%`);
-    addLine(`③ Sconto per Te (×${formatMultiplier(fd.sconto || 0.7)})`, `${euro(scontoPerTe)} + IVA 22%`);
+    addLine(`③ Sconto per Te (×${formatMultiplier(fd.sconto || 0.65)})`, `${euro(scontoPerTe)} + IVA 22%`);
     addLine('Margine Agenzia Stimato', euro(Math.round(margineAgenzia)));
 
     pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
