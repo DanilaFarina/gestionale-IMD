@@ -634,295 +634,309 @@ function QuoteForm({ onCancel, onSave, initialData }) {
         
         {/* FORM INSERIMENTO PARAMETRI (Sinistra - 2 colonne) */}
         <div className="lg:col-span-2 space-y-6">
-          <form id="quote-form" onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-8">
-            
-            {/* SEZIONE 1: Dettagli Generali */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-                <User size={18} className="text-blue-500"/> Dettagli Generali
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Cliente / Sposi</label>
-                  <input type="text" name="client" value={formData.client} onChange={handleChange} placeholder="es. Marco & Silvia" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Tipo Evento</label>
-                  <select name="type" value={formData.type} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                    <option value="Matrimonio">Matrimonio</option>
-                    <option value="Aziendale">Evento Aziendale</option>
-                    <option value="Compleanno">Festa Privata / Compleanno</option>
-                    <option value="Capodanno">Capodanno</option>
-                    <option value="Concerto">Concerto</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Data Evento</label>
-                  <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Via, nr civico, CAP, Città</label>
-                  <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="es. Via Roma 1, 53100 Siena" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Numero Momenti</label>
-                  <input type="number" name="numMomenti" min="1" value={formData.numMomenti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Numero Postazioni</label>
-                  <input type="number" name="numPostazioni" min="1" value={formData.numPostazioni} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+          <form id="quote-form" onSubmit={handleSubmit} className="space-y-6">
+
+            {/* ── PARTE 1: Informazioni Evento ── solo descrittive, non influenzano il prezzo */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-slate-100 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2">
+                  <User size={16} className="text-slate-500"/> Informazioni Evento
+                </h3>
+                <span className="text-xs font-medium text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">Solo PDF — non influenza il prezzo</span>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Cliente / Sposi</label>
+                    <input type="text" name="client" value={formData.client} onChange={handleChange} placeholder="es. Marco & Silvia" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tipo Evento</label>
+                    <select name="type" value={formData.type} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                      <option value="Matrimonio">Matrimonio</option>
+                      <option value="Aziendale">Evento Aziendale</option>
+                      <option value="Compleanno">Festa Privata / Compleanno</option>
+                      <option value="Capodanno">Capodanno</option>
+                      <option value="Concerto">Concerto</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Data Evento</label>
+                    <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Via, nr civico, CAP, Città</label>
+                    <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="es. Via Roma 1, 53100 Siena" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Numero Momenti</label>
+                    <input type="number" name="numMomenti" min="1" value={formData.numMomenti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Numero Postazioni</label>
+                    <input type="number" name="numPostazioni" min="1" value={formData.numPostazioni} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Dettagli Formazione (opzionale — per PDF)</label>
+                    <textarea name="band" rows={3} value={formData.band} onChange={handleChange} placeholder="es. Contrabbasso, Batteria, Piano + DJ" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* SEZIONE 2: Servizio Musicale & Staffing */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-                <Music size={18} className="text-blue-500"/> Servizio Musicale & Staffing
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Numero Musicisti</label>
-                  <input type="number" name="numMusicisti" min="1" value={formData.numMusicisti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Cachet per Musicista (€)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                    <input type="number" name="cachetMusicista" min="0" value={formData.cachetMusicista} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">Regola in base ai momenti (es. 200€ 1 momento, 300€ 2 momenti)</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Costo Cerimonia (€)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                    <input type="number" name="costoCerimonia" min="0" value={formData.costoCerimonia} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Costo Extra (€)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                    <input type="number" name="costoExtra" min="0" value={formData.costoExtra} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Num. Impianti Audio</label>
-                  <input type="number" name="numImpianti" min="0" value={formData.numImpianti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Costo DJ (€)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                    <input type="number" name="costoDj" min="0" value={formData.costoDj} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">Lascia 0 se non previsto</p>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Dettagli Formazione (opzionale — per PDF)</label>
-                  <textarea name="band" rows={3} value={formData.band} onChange={handleChange} placeholder="es. Contrabbasso, Batteria, Piano + DJ" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
+            {/* ── PARTE 2: Calcolo Prezzo ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-blue-200 overflow-hidden">
+              <div className="bg-blue-50 px-6 py-4 border-b border-blue-200 flex items-center gap-2">
+                <h3 className="text-base font-semibold text-blue-800 flex items-center gap-2">
+                  <Calculator size={16} className="text-blue-600"/> Calcolo Prezzo
+                </h3>
               </div>
+              <div className="p-6 space-y-6">
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mt-4">
-                <div className="flex flex-col justify-center">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="usaBraniRichiesta" checked={formData.usaBraniRichiesta} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                    <span className="text-sm font-medium text-slate-700">Brani su Richiesta</span>
-                  </label>
-                </div>
-                {formData.usaBraniRichiesta && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Costo Brani su Richiesta (€)</label>
-                    <input type="number" name="costoBraniRichiesta" min="0" value={formData.costoBraniRichiesta} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mt-4">
-                <div className="flex flex-col justify-center">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="usaCoordinator" checked={formData.usaCoordinator} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                    <span className="text-sm font-medium text-slate-700">Event Coordinator</span>
-                  </label>
-                </div>
-                {formData.usaCoordinator && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Costo Coordinator (€)</label>
-                    <input type="number" name="costoCoordinator" min="0" value={formData.costoCoordinator} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* SEZIONE 4: Trasferta */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-                <Car size={18} className="text-blue-500"/> Trasferta
-              </h3>
-
-              {/* Distanza automatica */}
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">
-                    Distanza da Firenze → {formData.address || '...'}
-                  </span>
-                  {distanzaLoading && (
-                    <span className="text-xs text-blue-600 animate-pulse">Calcolo in corso...</span>
-                  )}
-                </div>
-                {distanzaError ? (
-                  <p className="text-sm text-red-600">{distanzaError}</p>
-                ) : (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-blue-900">{formData.distanzaKm} km</span>
-                    <span className="text-xs text-blue-600">
-                      ({formData.andataRitorno ? `${formData.distanzaKm * 2} km A/R` : 'solo andata'})
-                    </span>
-                  </div>
-                )}
-                <label className="flex items-center gap-2 cursor-pointer mt-2">
-                  <input type="checkbox" name="andataRitorno" checked={formData.andataRitorno} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                  <span className="text-xs font-medium text-blue-700">Andata e Ritorno</span>
-                </label>
-                <p className="text-xs text-blue-500 mt-2">Distanza calcolata automaticamente via OpenStreetMap. Puoi sovrascriverla sotto.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Servizio Musicale */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Distanza (km) — override</label>
-                  <input type="number" name="distanzaKm" min="0" value={formData.distanzaKm} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Num. Macchine</label>
-                  <input type="number" name="numMacchine" min="1" value={formData.numMacchine} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Prezzo Benzina (€/L)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                    <input type="number" name="prezzoBenzina" min="0" step="0.01" value={formData.prezzoBenzina} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {prezzoAutoFetched ? '✓ Aggiornato automaticamente (MIMIT)' : 'Prezzo medio di default — aggiorna manualmente se necessario'}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Consumo Medio (km/L)</label>
-                  <input type="number" name="consumoMedio" min="1" step="0.5" value={formData.consumoMedio} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-              </div>
-
-              {/* Pedaggio autostradale */}
-              <div className="mt-4 bg-amber-50 p-4 rounded-xl border border-amber-100">
-                <label className="flex items-center gap-2 cursor-pointer mb-3">
-                  <input type="checkbox" name="inclPedaggio" checked={formData.inclPedaggio} onChange={handleChange} className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500" />
-                  <span className="text-sm font-medium text-amber-800">Includi Pedaggio Autostradale</span>
-                </label>
-                {formData.inclPedaggio && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="pedaggioAutoCalc" checked={formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: true }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
-                        <span className="text-sm text-amber-800">Stima automatica (~0.08 €/km)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="pedaggioAutoCalc" checked={!formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: false }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
-                        <span className="text-sm text-amber-800">Inserisci manualmente</span>
-                      </label>
-                    </div>
-                    {!formData.pedaggioAutoCalc && (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Pedaggio Totale (€)</label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                          <input type="number" name="pedaggioManuale" min="0" step="0.5" value={formData.pedaggioManuale} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">Verifica su autostrade.it o ViaMichelin per il costo esatto</p>
-                      </div>
-                    )}
-                    {calc.pedaggioStimato > 0 && (
-                      <div className="flex justify-between items-center text-sm text-amber-800 bg-amber-100/50 p-2 rounded-lg">
-                        <span>
-                          {formData.pedaggioAutoCalc
-                            ? `${calc.distanzaEffettiva} km × 0.08 €/km × ${formData.numMacchine} macch.`
-                            : 'Importo manuale'}
-                        </span>
-                        <span className="font-semibold">€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Pernottamento */}
-              <div className="mt-4 bg-purple-50 p-4 rounded-xl border border-purple-100">
-                <label className="flex items-center gap-2 cursor-pointer mb-3">
-                  <input type="checkbox" name="usaPernottamento" checked={formData.usaPernottamento} onChange={handleChange} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500" />
-                  <span className="text-sm font-medium text-purple-800">Pernottamento</span>
-                </label>
-                {formData.usaPernottamento && (
+                  <h4 className="text-sm font-semibold text-slate-600 flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
+                    <Music size={14} className="text-blue-400"/> Servizio Musicale & Staffing
+                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Numero Notti</label>
-                      <input type="number" name="numNotti" min="1" value={formData.numNotti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500" />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Numero Musicisti</label>
+                      <input type="number" name="numMusicisti" min="1" value={formData.numMusicisti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Prezzo per Notte (€)</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Cachet per Musicista (€)</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                        <input type="number" name="prezzoPerNotte" min="0" value={formData.prezzoPerNotte} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500" />
+                        <input type="number" name="cachetMusicista" min="0" value={formData.cachetMusicista} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Regola in base ai momenti (es. 200€ 1 momento, 300€ 2 momenti)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Costo Cerimonia (€)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                        <input type="number" name="costoCerimonia" min="0" value={formData.costoCerimonia} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                       </div>
                     </div>
-                    {calc.costoPernottamento > 0 && (
-                      <div className="md:col-span-2 flex justify-between items-center text-sm text-purple-800 bg-purple-100/50 p-2 rounded-lg">
-                        <span>{formData.numNotti} notti × €{formData.prezzoPerNotte} × {formData.numMusicisti} musicisti</span>
-                        <span className="font-semibold">€ {calc.costoPernottamento.toLocaleString('it-IT')}</span>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Costo Extra (€)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                        <input type="number" name="costoExtra" min="0" value={formData.costoExtra} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Num. Impianti Audio</label>
+                      <input type="number" name="numImpianti" min="0" value={formData.numImpianti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Costo DJ (€)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                        <input type="number" name="costoDj" min="0" value={formData.costoDj} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Lascia 0 se non previsto</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mt-4">
+                    <div className="flex flex-col justify-center">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="usaBraniRichiesta" checked={formData.usaBraniRichiesta} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                        <span className="text-sm font-medium text-slate-700">Brani su Richiesta</span>
+                      </label>
+                    </div>
+                    {formData.usaBraniRichiesta && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Costo Brani su Richiesta (€)</label>
+                        <input type="number" name="costoBraniRichiesta" min="0" value={formData.costoBraniRichiesta} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                       </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {/* Riepilogo trasferta inline */}
-              {(calc.costoTrasferta > 0 || calc.costoPernottamento > 0) && (
-                <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm text-slate-600 space-y-1">
-                  {calc.costoTrasferta > 0 && (
-                    <>
-                      <div className="flex justify-between">
-                        <span>Carburante: {calc.distanzaEffettiva} km ÷ {formData.consumoMedio} km/L × {formData.prezzoBenzina}€/L × {formData.numMacchine}</span>
-                        <span className="font-medium text-slate-700">€ {calc.costoCarburante.toLocaleString('it-IT')}</span>
-                      </div>
-                      {calc.pedaggioStimato > 0 && (
-                        <div className="flex justify-between">
-                          <span>Pedaggio{formData.pedaggioAutoCalc ? ' (stimato)' : ''}</span>
-                          <span className="font-medium text-slate-700">€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {calc.costoPernottamento > 0 && (
-                    <div className="flex justify-between">
-                      <span>Pernottamento: {formData.numNotti} notti × €{formData.prezzoPerNotte} × {formData.numMusicisti} musicisti</span>
-                      <span className="font-medium text-slate-700">€ {calc.costoPernottamento.toLocaleString('it-IT')}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mt-4">
+                    <div className="flex flex-col justify-center">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="usaCoordinator" checked={formData.usaCoordinator} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                        <span className="text-sm font-medium text-slate-700">Event Coordinator</span>
+                      </label>
                     </div>
-                  )}
-                  <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-800">
-                    <span>Totale Trasferta + Pernottamento</span>
-                    <span>€ {(calc.costoTrasferta + calc.costoPernottamento).toLocaleString('it-IT')}</span>
+                    {formData.usaCoordinator && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Costo Coordinator (€)</label>
+                        <input type="number" name="costoCoordinator" min="0" value={formData.costoCoordinator} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+
+                {/* Trasferta */}
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-600 flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
+                    <Car size={14} className="text-blue-400"/> Trasferta
+                  </h4>
+
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-blue-800">
+                        Distanza da Firenze → {formData.address || '...'}
+                      </span>
+                      {distanzaLoading && (
+                        <span className="text-xs text-blue-600 animate-pulse">Calcolo in corso...</span>
+                      )}
+                    </div>
+                    {distanzaError ? (
+                      <p className="text-sm text-red-600">{distanzaError}</p>
+                    ) : (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold text-blue-900">{formData.distanzaKm} km</span>
+                        <span className="text-xs text-blue-600">
+                          ({formData.andataRitorno ? `${formData.distanzaKm * 2} km A/R` : 'solo andata'})
+                        </span>
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer mt-2">
+                      <input type="checkbox" name="andataRitorno" checked={formData.andataRitorno} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                      <span className="text-xs font-medium text-blue-700">Andata e Ritorno</span>
+                    </label>
+                    <p className="text-xs text-blue-500 mt-2">Distanza calcolata automaticamente via OpenStreetMap. Puoi sovrascriverla sotto.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Distanza (km) — override</label>
+                      <input type="number" name="distanzaKm" min="0" value={formData.distanzaKm} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Num. Macchine</label>
+                      <input type="number" name="numMacchine" min="1" value={formData.numMacchine} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Prezzo Benzina (€/L)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                        <input type="number" name="prezzoBenzina" min="0" step="0.01" value={formData.prezzoBenzina} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {prezzoAutoFetched ? '✓ Aggiornato automaticamente (MIMIT)' : 'Prezzo medio di default — aggiorna manualmente se necessario'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Consumo Medio (km/L)</label>
+                      <input type="number" name="consumoMedio" min="1" step="0.5" value={formData.consumoMedio} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-amber-50 p-4 rounded-xl border border-amber-100">
+                    <label className="flex items-center gap-2 cursor-pointer mb-3">
+                      <input type="checkbox" name="inclPedaggio" checked={formData.inclPedaggio} onChange={handleChange} className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500" />
+                      <span className="text-sm font-medium text-amber-800">Includi Pedaggio Autostradale</span>
+                    </label>
+                    {formData.inclPedaggio && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="pedaggioAutoCalc" checked={formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: true }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
+                            <span className="text-sm text-amber-800">Stima automatica (~0.08 €/km)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="pedaggioAutoCalc" checked={!formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: false }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
+                            <span className="text-sm text-amber-800">Inserisci manualmente</span>
+                          </label>
+                        </div>
+                        {!formData.pedaggioAutoCalc && (
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Pedaggio Totale (€)</label>
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                              <input type="number" name="pedaggioManuale" min="0" step="0.5" value={formData.pedaggioManuale} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">Verifica su autostrade.it o ViaMichelin per il costo esatto</p>
+                          </div>
+                        )}
+                        {calc.pedaggioStimato > 0 && (
+                          <div className="flex justify-between items-center text-sm text-amber-800 bg-amber-100/50 p-2 rounded-lg">
+                            <span>
+                              {formData.pedaggioAutoCalc
+                                ? `${calc.distanzaEffettiva} km × 0.08 €/km × ${formData.numMacchine} macch.`
+                                : 'Importo manuale'}
+                            </span>
+                            <span className="font-semibold">€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 bg-purple-50 p-4 rounded-xl border border-purple-100">
+                    <label className="flex items-center gap-2 cursor-pointer mb-3">
+                      <input type="checkbox" name="usaPernottamento" checked={formData.usaPernottamento} onChange={handleChange} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500" />
+                      <span className="text-sm font-medium text-purple-800">Pernottamento</span>
+                    </label>
+                    {formData.usaPernottamento && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Numero Notti</label>
+                          <input type="number" name="numNotti" min="1" value={formData.numNotti} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Prezzo per Notte (€)</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                            <input type="number" name="prezzoPerNotte" min="0" value={formData.prezzoPerNotte} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500" />
+                          </div>
+                        </div>
+                        {calc.costoPernottamento > 0 && (
+                          <div className="md:col-span-2 flex justify-between items-center text-sm text-purple-800 bg-purple-100/50 p-2 rounded-lg">
+                            <span>{formData.numNotti} notti × €{formData.prezzoPerNotte} × {formData.numMusicisti} musicisti</span>
+                            <span className="font-semibold">€ {calc.costoPernottamento.toLocaleString('it-IT')}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {(calc.costoTrasferta > 0 || calc.costoPernottamento > 0) && (
+                    <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm text-slate-600 space-y-1">
+                      {calc.costoTrasferta > 0 && (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Carburante: {calc.distanzaEffettiva} km ÷ {formData.consumoMedio} km/L × {formData.prezzoBenzina}€/L × {formData.numMacchine}</span>
+                            <span className="font-medium text-slate-700">€ {calc.costoCarburante.toLocaleString('it-IT')}</span>
+                          </div>
+                          {calc.pedaggioStimato > 0 && (
+                            <div className="flex justify-between">
+                              <span>Pedaggio{formData.pedaggioAutoCalc ? ' (stimato)' : ''}</span>
+                              <span className="font-medium text-slate-700">€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {calc.costoPernottamento > 0 && (
+                        <div className="flex justify-between">
+                          <span>Pernottamento: {formData.numNotti} notti × €{formData.prezzoPerNotte} × {formData.numMusicisti} musicisti</span>
+                          <span className="font-medium text-slate-700">€ {calc.costoPernottamento.toLocaleString('it-IT')}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-800">
+                        <span>Totale Trasferta + Pernottamento</span>
+                        <span>€ {(calc.costoTrasferta + calc.costoPernottamento).toLocaleString('it-IT')}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
             </div>
 
-            {/* SEZIONE 5: Commissioni e Sconti */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-                <Calculator size={18} className="text-blue-500"/> Commissioni e Sconti
-              </h3>
-              <div className="space-y-4">
-                {/* Commissione Wedding Planner */}
+            {/* ── PARTE 3: Spese e Commissioni ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+              <div className="bg-amber-50 px-6 py-4 border-b border-amber-200 flex items-center gap-2">
+                <h3 className="text-base font-semibold text-amber-800 flex items-center gap-2">
+                  <Calculator size={16} className="text-amber-600"/> Spese e Commissioni
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -938,7 +952,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   </div>
                 </div>
 
-                {/* Commissione Fix The Music */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -954,7 +967,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   </div>
                 </div>
 
-                {/* Extra Sconto */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -970,7 +982,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   </div>
                 </div>
 
-                {/* Maggiorazione Agenzia */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
