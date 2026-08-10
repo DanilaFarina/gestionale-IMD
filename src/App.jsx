@@ -319,7 +319,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : (type === 'number' ? Number(value) : value)
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
     }));
   };
 
@@ -423,52 +423,53 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 
   // Calcoli in tempo reale (Il "Riepilogo Interno" / Excel)
   const calc = useMemo(() => {
-    const costiMusicisti = formData.numMusicisti * formData.cachetMusicista;
-    const costoCerimonia = Number(formData.costoCerimonia);
-    const costoExtra = Number(formData.costoExtra);
-    const costiImpianti = formData.numImpianti * formData.costoImpianto;
-    const costoDj = Number(formData.costoDj);
-    const costoBraniRichiesta = formData.usaBraniRichiesta ? Number(formData.costoBraniRichiesta) : 0;
-    const costiCoordinator = formData.usaCoordinator ? formData.costoCoordinator : 0;
+    const n = v => Number(v) || 0;
+    const costiMusicisti = n(formData.numMusicisti) * n(formData.cachetMusicista);
+    const costoCerimonia = n(formData.costoCerimonia);
+    const costoExtra = n(formData.costoExtra);
+    const costiImpianti = n(formData.numImpianti) * n(formData.costoImpianto);
+    const costoDj = n(formData.costoDj);
+    const costoBraniRichiesta = formData.usaBraniRichiesta ? n(formData.costoBraniRichiesta) : 0;
+    const costiCoordinator = formData.usaCoordinator ? n(formData.costoCoordinator) : 0;
 
     // Trasferta
-    const distanzaEffettiva = formData.andataRitorno ? formData.distanzaKm * 2 : formData.distanzaKm;
-    const litriNecessari = formData.consumoMedio > 0 ? distanzaEffettiva / formData.consumoMedio : 0;
-    const costoCarburante = Math.round(litriNecessari * formData.prezzoBenzina * formData.numMacchine);
+    const distanzaEffettiva = formData.andataRitorno ? n(formData.distanzaKm) * 2 : n(formData.distanzaKm);
+    const litriNecessari = n(formData.consumoMedio) > 0 ? distanzaEffettiva / n(formData.consumoMedio) : 0;
+    const costoCarburante = Math.round(litriNecessari * n(formData.prezzoBenzina) * n(formData.numMacchine));
 
     // Pedaggio autostradale (~0.08 €/km media autostrade italiane)
     const pedaggioStimato = formData.inclPedaggio
       ? (formData.pedaggioAutoCalc
-          ? Math.round(distanzaEffettiva * 0.08 * formData.numMacchine)
-          : formData.pedaggioManuale)
+          ? Math.round(distanzaEffettiva * 0.08 * n(formData.numMacchine))
+          : n(formData.pedaggioManuale))
       : 0;
 
     const costoTrasferta = costoCarburante + pedaggioStimato;
 
     // Pernottamento
     const costoPernottamento = formData.usaPernottamento
-      ? formData.numNotti * formData.prezzoPerNotte * formData.numMusicisti
+      ? n(formData.numNotti) * n(formData.prezzoPerNotte) * n(formData.numMusicisti)
       : 0;
 
     // Prezzo servizi (base)
     const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
 
     // Prezzo netto: servizi + commissione agenzia - extra sconto
-    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia ? totaleCostiBase * (formData.percMaggAgenzia / 100) : 0;
+    const maggiorazioneAgenziaVal = formData.usaMaggAgenzia ? totaleCostiBase * (n(formData.percMaggAgenzia) / 100) : 0;
     const baseNetto = totaleCostiBase + maggiorazioneAgenziaVal;
-    const extraScontoVal = formData.usaExtraSconto ? baseNetto * (formData.percExtraSconto / 100) : 0;
+    const extraScontoVal = formData.usaExtraSconto ? baseNetto * (n(formData.percExtraSconto) / 100) : 0;
     const prezzoNetto = baseNetto - extraScontoVal;
 
     // Prezzo lordo (senza calcolare IVA nel totale numerico)
     const prezzoLordo = prezzoNetto / 0.6;
 
     // Commissioni sul lordo
-    const commissioneWP = formData.usaCommWP ? prezzoLordo * (formData.percCommWP / 100) : 0;
-    const commissioneFTM = formData.usaCommFTM ? prezzoLordo * (formData.percCommFTM / 100) : 0;
+    const commissioneWP = formData.usaCommWP ? prezzoLordo * (n(formData.percCommWP) / 100) : 0;
+    const commissioneFTM = formData.usaCommFTM ? prezzoLordo * (n(formData.percCommFTM) / 100) : 0;
 
     // Prezzo finale numerico escluso IVA (IVA solo come dicitura)
     const subTotale = prezzoLordo + commissioneWP + commissioneFTM + costoTrasferta + costoPernottamento;
-    const totaleFinale = subTotale - formData.sconto;
+    const totaleFinale = subTotale - n(formData.sconto);
 
     // Margine Agenzia stimato
     const margineAgenzia = totaleFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
