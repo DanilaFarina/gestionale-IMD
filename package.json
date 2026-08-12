@@ -11,6 +11,8 @@
     "deploy": "npm run build && gh-pages -d dist --repo https://github.com/DanilaFarina/gestionale-IMD.git"
   },
   "dependencies": {
+    "@fontsource/pt-serif": "^5.3.0",
+    "@fontsource/roboto": "^5.3.0",
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.110.8",
     "html2canvas-pro": "^2.0.2",

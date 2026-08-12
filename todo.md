@@ -1,6 +1,7 @@
 ## Per numero postazioni da scrivere nel preventivo puoi
 prendere il numero di impianti audio
 
+# Aggiungere orario generale
 
 ### RIEPILOGO PREZZI
 prezzo servizi= proposta musicale + costo cerimonia + impianti + dj + event coordinator + eventuali brani su richiesta + costo extra 

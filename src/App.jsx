@@ -1,7 +1,14 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { jsPDF } from 'jspdf';
-import { Document, Page, View, Text, Image, StyleSheet, pdf } from '@react-pdf/renderer';
+import { Document, Page, View, Text, Image, StyleSheet, pdf, PDFViewer, Font } from '@react-pdf/renderer';
 import logoIMD from './assets/logo-imd.svg';
+// .woff (non .woff2) per compatibilità con il parser font di react-pdf
+import ptSerifRegular from '@fontsource/pt-serif/files/pt-serif-latin-400-normal.woff';
+import ptSerifItalic from '@fontsource/pt-serif/files/pt-serif-latin-400-italic.woff';
+import ptSerifBold from '@fontsource/pt-serif/files/pt-serif-latin-700-normal.woff';
+import robotoRegular from '@fontsource/roboto/files/roboto-latin-400-normal.woff';
+import robotoItalic from '@fontsource/roboto/files/roboto-latin-400-italic.woff';
+import robotoBold from '@fontsource/roboto/files/roboto-latin-700-normal.woff';
 import { supabase } from './supabaseClient';
 import { 
   Plus, 
@@ -29,6 +36,26 @@ import {
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
+
+// Font standard (Times-Roman/Helvetica) non rendono correttamente gli accenti: registriamo font Unicode reali
+Font.register({
+  family: 'PT Serif',
+  fonts: [
+    { src: ptSerifRegular, fontWeight: 'normal' },
+    { src: ptSerifBold, fontWeight: 'bold' },
+    { src: ptSerifItalic, fontStyle: 'italic' },
+  ],
+});
+Font.register({
+  family: 'Roboto',
+  fonts: [
+    { src: robotoRegular, fontWeight: 'normal' },
+    { src: robotoBold, fontWeight: 'bold' },
+    { src: robotoItalic, fontStyle: 'italic' },
+  ],
+});
+// Disabilita la sillabazione automatica (spezza male le parole accentate)
+Font.registerHyphenationCallback(word => [word]);
 
 function roundPrice(value, step = PRICE_ROUNDING_STEP) {
   const amount = Number(value) || 0;
@@ -291,8 +318,12 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     address: '',
     type: 'Matrimonio',
     band: '',
+    acconto: 0,
+    numeroOspiti: '',
+    orarioEvento: '',
+    repertorio: '',
     numMomenti: 1,
-    momenti: [{ titolo: '', descrizione: '' }],
+    momenti: [{ titolo: '', descrizione: '', orario: '' }],
     numMusicisti: 3,
     cachetMusicista: 200,
     costoCerimonia: 0,
@@ -345,7 +376,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     setFormData(prev => {
       const n = Math.max(1, prev.numMomenti + delta);
       const momenti = [...(prev.momenti || [])];
-      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '' });
+      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', orario: '' });
       return { ...prev, numMomenti: n, momenti: momenti.slice(0, n) };
     });
   };
@@ -687,12 +718,37 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     </select>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome Band / Formazione</label>
+                    <input type="text" name="band" value={formData.band} onChange={handleChange} placeholder="es. Talking Ties Trio" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    <p className="text-xs text-slate-500 mt-1">Appare nel PDF come nome del gruppo</p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Data Evento</label>
                     <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Via, nr civico, CAP, Città</label>
                     <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="es. Via Roma 1, 53100 Siena" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Acconto (€)</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                      <input type="number" name="acconto" min="0" value={formData.acconto} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Appare nel PDF come caparra confirmatoria</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ospiti Stimati</label>
+                    <input type="number" name="numeroOspiti" min="0" value={formData.numeroOspiti} onChange={handleChange} placeholder="es. 100" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Orario Evento</label>
+                    <input type="text" name="orarioEvento" value={formData.orarioEvento} onChange={handleChange} placeholder="es. 18:00 – 01:00" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Repertorio Musicale</label>
+                    <input type="text" name="repertorio" value={formData.repertorio} onChange={handleChange} placeholder="es. Swing italiano, jazz, New Orleans, ragtime" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                   <div className="md:col-span-2">
                     <div className="flex items-center justify-between mb-3">
@@ -706,7 +762,19 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     <div className="space-y-3">
                       {(formData.momenti || []).map((m, i) => (
                         <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Momento {i + 1}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Momento {i + 1}</p>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-slate-500">Orario:</label>
+                              <input
+                                type="text"
+                                value={m.orario || ''}
+                                onChange={e => handleMomentoField(i, 'orario', e.target.value)}
+                                placeholder="es. 17:00"
+                                className="w-24 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          </div>
                           <input
                             type="text"
                             value={m.titolo}
@@ -1192,74 +1260,232 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 // DOCUMENTO PDF PREVENTIVO (vettoriale)
 // ==========================================
 const pdfStyles = StyleSheet.create({
-  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'Times-Roman', color: '#292524', fontSize: 11 },
+  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'PT Serif', color: '#292524', fontSize: 11 },
   logo: { width: 200, height: 133, alignSelf: 'center', marginBottom: 24, objectFit: 'contain' },
   infoBlock: { marginBottom: 40 },
-  infoLine: { fontFamily: 'Helvetica', fontSize: 10, marginBottom: 3, color: '#292524' },
+  infoLine: { fontFamily: 'Roboto', fontSize: 10, marginBottom: 3, color: '#292524' },
   infoLabel: { color: '#a8a29e' },
-  sectionTitle: { fontFamily: 'Helvetica', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#a8a29e', marginBottom: 18 },
+  sectionTitle: { fontFamily: 'Roboto', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#a8a29e', marginBottom: 18 },
   serviceRow: { flexDirection: 'row', marginBottom: 12 },
   bullet: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#a8a29e', marginTop: 6, marginRight: 10 },
-  serviceTitle: { fontFamily: 'Times-Roman', fontSize: 12, color: '#292524' },
-  serviceDesc: { fontFamily: 'Helvetica', fontSize: 9, color: '#a8a29e', marginTop: 2 },
+  serviceTitle: { fontFamily: 'PT Serif', fontSize: 12, color: '#292524' },
+  serviceDesc: { fontFamily: 'Roboto', fontSize: 9, color: '#a8a29e', marginTop: 2 },
   divider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 32 },
   ecoBox: { backgroundColor: '#fafaf9', padding: 28 },
   ecoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  ecoLabel: { fontFamily: 'Helvetica', fontSize: 10, color: '#57534e' },
-  ecoLabelStrong: { fontFamily: 'Helvetica', fontSize: 10, color: '#292524', fontWeight: 'bold' },
+  ecoLabel: { fontFamily: 'Roboto', fontSize: 10, color: '#57534e' },
+  ecoLabelStrong: { fontFamily: 'Roboto', fontSize: 10, color: '#292524', fontWeight: 'bold' },
   ecoValue: { fontSize: 20, color: '#292524' },
   ecoValueBig: { fontSize: 26, color: '#1c1917' },
   ecoDivider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 18 },
-  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Helvetica', fontSize: 8, color: '#a8a29e', textAlign: 'center', lineHeight: 1.5 },
+  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Roboto', fontSize: 8, color: '#a8a29e', textAlign: 'center', lineHeight: 1.5 },
   footer: { marginTop: 32, alignItems: 'center' },
   footerLine: { width: 32, height: 1, backgroundColor: '#d6d3d1', marginBottom: 12 },
-  footerBrand: { fontFamily: 'Helvetica', fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: '#d6d3d1' },
+  footerBrand: { fontFamily: 'Roboto', fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: '#d6d3d1' },
+  ecoSubRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
+  ecoSubLabel: { fontFamily: 'Roboto', fontSize: 9, color: '#78716c' },
+  ecoSubValue: { fontFamily: 'Roboto', fontSize: 13, color: '#292524' },
+  docMeta: { fontFamily: 'Roboto', fontSize: 8, color: '#a8a29e', textAlign: 'center', marginBottom: 24 },
+  sectionHeader: { fontFamily: 'Roboto', fontSize: 7.5, letterSpacing: 1.5, color: '#292524', marginBottom: 10, marginTop: 20, borderBottomWidth: 0.5, borderBottomColor: '#e7e5e4', paddingBottom: 4 },
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  infoItem: { width: '50%', marginBottom: 6, paddingRight: 8 },
+  infoItemFull: { width: '100%', marginBottom: 6 },
+  fieldLabel: { fontFamily: 'Roboto', fontSize: 7.5, color: '#a8a29e', marginBottom: 1 },
+  fieldValue: { fontFamily: 'Roboto', fontSize: 10, color: '#292524' },
+  momentoBlock: { marginBottom: 12, paddingLeft: 10, borderLeftWidth: 1.5, borderLeftColor: '#e7e5e4' },
+  momentoTitle: { fontFamily: 'Roboto', fontSize: 10, color: '#292524', marginBottom: 2 },
+  momentoDesc: { fontFamily: 'Roboto', fontSize: 9, color: '#a8a29e', lineHeight: 1.4 },
+  bulletRow: { flexDirection: 'row', marginBottom: 4 },
+  bulletDot: { fontFamily: 'Roboto', fontSize: 9, color: '#a8a29e', width: 10 },
+  bulletText: { fontFamily: 'Roboto', fontSize: 9, color: '#57534e', flex: 1, lineHeight: 1.4 },
+  twoColLeft: { flex: 1, marginRight: 14 },
+  twoColRight: { flex: 1 },
+  colSubHeader: { fontFamily: 'Roboto', fontSize: 7.5, color: '#a8a29e', letterSpacing: 1, marginBottom: 6 },
 });
 
-function QuotePDF({ quote, servizi, prezzoFinale, scontoperTe, logoPng }) {
+function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd }) {
+  const today = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const inclusi = ['Performance musicale come da programma'];
+  if (fd.usaCoordinator) inclusi.push('Consulenza, direzione e coordinamento artistico');
+  if (Number(fd.distanzaKm) > 0) inclusi.push(`Spese di trasferta (${fd.distanzaKm} km${fd.andataRitorno ? ' A/R' : ''})`);
+  if (fd.usaPernottamento) inclusi.push(`Pernottamento (${fd.numNotti} nott${Number(fd.numNotti) > 1 ? 'i' : 'e'} \u00d7 ${fd.numMusicisti} musicisti)`);
+  if (Number(fd.numImpianti) > 0) inclusi.push(`Impianto audio professionale${Number(fd.numImpianti) > 1 ? ` (\u00d7${fd.numImpianti})` : ''}`);
+  if (Number(fd.costoDj) > 0) inclusi.push('DJ Set');
+  if (fd.usaBraniRichiesta) inclusi.push('Arrangiamento e studio di brani su richiesta');
+
+  const esclusioni = [
+    "Diritti d'Autore (S.I.A.E.) \u2013 a carico del Cliente (entro il giorno precedente l'evento)",
+    `Vitto per i Musicisti \u2013 pasto a sedere per n. ${fd.numMusicisti || ''} artisti`,
+  ];
+
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
         {logoPng ? <Image style={pdfStyles.logo} src={logoPng} /> : null}
+        <Text style={pdfStyles.docMeta}>Data di Emissione: {today}   |   Scadenza Offerta: {expiry}</Text>
 
-        <View style={pdfStyles.infoBlock}>
-          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Preventivo - </Text>The IMD</Text>
-          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Intestatario: </Text>{quote.client}</Text>
-          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Location: </Text>{quote.location}</Text>
-          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Evento: </Text>{quote.type}</Text>
-          <Text style={pdfStyles.infoLine}><Text style={pdfStyles.infoLabel}>Data: </Text>{quote.date}</Text>
+        {/* 1. Dettagli Evento */}
+        <Text style={pdfStyles.sectionHeader}>1. Dettagli dell&apos;Evento</Text>
+        <View style={pdfStyles.infoGrid}>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Cliente / Agenzia</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.client}</Text>
+          </View>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Tipologia Evento</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.type}</Text>
+          </View>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Data Evento</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.date}</Text>
+          </View>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Location</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.location}</Text>
+          </View>
+          {fd.numeroOspiti ? (
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Numero Stimato Ospiti</Text>
+              <Text style={pdfStyles.fieldValue}>{String(fd.numeroOspiti)} pax</Text>
+            </View>
+          ) : null}
+          {fd.orarioEvento ? (
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Orario Indicativo Evento</Text>
+              <Text style={pdfStyles.fieldValue}>{fd.orarioEvento}</Text>
+            </View>
+          ) : null}
         </View>
 
-        <Text style={pdfStyles.sectionTitle}>Proposta Artistica</Text>
-        {servizi.map((s, i) => (
-          <View key={i} style={pdfStyles.serviceRow}>
-            <View style={pdfStyles.bullet} />
-            <View style={{ flex: 1 }}>
-              <Text style={pdfStyles.serviceTitle}>{s.titolo}</Text>
-              <Text style={pdfStyles.serviceDesc}>{s.desc}</Text>
-            </View>
+        {/* 2. Proposta Artistica */}
+        <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica &amp; Band</Text>
+        <View style={pdfStyles.infoGrid}>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Nome Band / Progetto</Text>
+            <Text style={pdfStyles.fieldValue}>{band || 'The Italian Music Designer'}</Text>
           </View>
-        ))}
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Numero Artisti</Text>
+            <Text style={pdfStyles.fieldValue}>{String(fd.numMusicisti || '')}</Text>
+          </View>
+          {fd.repertorio ? (
+            <View style={pdfStyles.infoItemFull}>
+              <Text style={pdfStyles.fieldLabel}>Repertorio Musicale</Text>
+              <Text style={pdfStyles.fieldValue}>{fd.repertorio}</Text>
+            </View>
+          ) : null}
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Postazioni Musicali Distinte</Text>
+            <Text style={pdfStyles.fieldValue}>{String(fd.numImpianti || '')}</Text>
+          </View>
+        </View>
 
-        <View style={pdfStyles.divider} />
+        {/* 3. Momenti */}
+        <Text style={pdfStyles.sectionHeader}>3. Programma e Dettaglio dei Momenti</Text>
+        {(fd.momenti || []).filter(m => m.titolo).length > 0
+          ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
+              <View key={i} style={pdfStyles.momentoBlock}>
+                <Text style={pdfStyles.momentoTitle}>
+                  {m.titolo}{m.orario ? `  \u2014  Orario: ${m.orario}` : ''}
+                </Text>
+                {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
+              </View>
+            ))
+          : <View style={pdfStyles.momentoBlock}><Text style={pdfStyles.momentoDesc}>Nessun momento specificato</Text></View>
+        }
 
-        <Text style={pdfStyles.sectionTitle}>Riepilogo economico</Text>
+        {/* 4. Condizioni Economiche */}
+        <Text style={pdfStyles.sectionHeader}>4. Condizioni Economiche</Text>
         <View style={pdfStyles.ecoBox}>
           <View style={pdfStyles.ecoRow}>
-            <Text style={pdfStyles.ecoLabel}>Prezzo finale</Text>
+            <Text style={pdfStyles.ecoLabel}>Prezzo Finale</Text>
             <Text style={pdfStyles.ecoValue}>€ {prezzoFinale.toLocaleString('it-IT')} + IVA 22%</Text>
           </View>
           <View style={pdfStyles.ecoDivider} />
           <View style={pdfStyles.ecoRow}>
-            <Text style={pdfStyles.ecoLabelStrong}>Prezzo riservato a te</Text>
+            <Text style={pdfStyles.ecoLabelStrong}>Sconto per Te</Text>
             <Text style={pdfStyles.ecoValueBig}>€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</Text>
+          </View>
+          {acconto > 0 ? (
+            <>
+              <View style={pdfStyles.ecoDivider} />
+              <View style={pdfStyles.ecoSubRow}>
+                <Text style={pdfStyles.ecoSubLabel}>Acconto (caparra confirmatoria)</Text>
+                <Text style={pdfStyles.ecoSubValue}>€ {acconto.toLocaleString('it-IT')}</Text>
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        {/* Inclusi / Esclusi */}
+        <View style={{ marginTop: 14, flexDirection: 'row' }}>
+          <View style={pdfStyles.twoColLeft}>
+            <Text style={pdfStyles.colSubHeader}>INCLUSO NEL PREZZO</Text>
+            {inclusi.map((item, i) => (
+              <View key={i} style={pdfStyles.bulletRow}>
+                <Text style={pdfStyles.bulletDot}>•</Text>
+                <Text style={pdfStyles.bulletText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={pdfStyles.twoColRight}>
+            <Text style={pdfStyles.colSubHeader}>ESCLUSO DAL PREZZO</Text>
+            {esclusioni.map((item, i) => (
+              <View key={i} style={pdfStyles.bulletRow}>
+                <Text style={pdfStyles.bulletDot}>•</Text>
+                <Text style={pdfStyles.bulletText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 5. Rider */}
+        <Text style={pdfStyles.sectionHeader}>5. Rider Tecnico &amp; Logistica</Text>
+        {[
+          `Attrezzatura audio: ${Number(fd.numImpianti) > 0 ? 'Fornita dalla band' : 'A cura del cliente/service'}`,
+          'Alimentazione elettrica idonea (prese Schuko) nei punti di esibizione',
+          "Camerino o area riservata per cambi, deposito strumenti e beni personali dei musicisti",
+          "Copertura/tenda per artisti e strumenti in caso di esibizione all'aperto",
+          "Accesso alla location almeno 1 ora prima per montaggio e soundcheck",
+          `Vitto: pasto caldo per n. ${fd.numMusicisti || ''} artisti`,
+        ].map((item, i) => (
+          <View key={i} style={pdfStyles.bulletRow}>
+            <Text style={pdfStyles.bulletDot}>•</Text>
+            <Text style={pdfStyles.bulletText}>{item}</Text>
+          </View>
+        ))}
+
+        {/* 6. Web */}
+        <Text style={pdfStyles.sectionHeader}>6. Materiale Multimediale</Text>
+        {['Sito Web: www.italianmusicdesigner.com', 'Video: youtube.com/@ItalianMusicDesigner'].map((item, i) => (
+          <View key={i} style={pdfStyles.bulletRow}>
+            <Text style={pdfStyles.bulletDot}>•</Text>
+            <Text style={pdfStyles.bulletText}>{item}</Text>
+          </View>
+        ))}
+
+        {/* 7. Contatti */}
+        <Text style={pdfStyles.sectionHeader}>7. Contatti</Text>
+        <View style={pdfStyles.infoGrid}>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Referente Artistico</Text>
+            <Text style={pdfStyles.fieldValue}>Giovanni Gargini</Text>
+          </View>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Telefono</Text>
+            <Text style={pdfStyles.fieldValue}>+39 333 828 3982</Text>
+          </View>
+          <View style={pdfStyles.infoItemFull}>
+            <Text style={pdfStyles.fieldLabel}>E-mail</Text>
+            <Text style={pdfStyles.fieldValue}>giovannigargini@gmail.com</Text>
           </View>
         </View>
 
         <Text style={pdfStyles.note}>
           Il presente preventivo ha validità 30 giorni dalla data di emissione.
         </Text>
-
         <View style={pdfStyles.footer}>
           <View style={pdfStyles.footerLine} />
           <Text style={pdfStyles.footerBrand}>The Italian Music Designer</Text>
@@ -1274,82 +1500,20 @@ function QuotePDF({ quote, servizi, prezzoFinale, scontoperTe, logoPng }) {
 // ==========================================
 function PrintView({ quote, onBack }) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [logoPng, setLogoPng] = useState('');
   const fd = quote.formData || {};
-  const dettagliFormazione = '';
+  const band = fd.band || '';
+  const acconto = Number(fd.acconto || 0);
 
-  // Calcolo prezzi finali (IVA non calcolata numericamente)
+  // Calcolo prezzi finali
   const moltiplicatoreSconto = Number(fd.sconto || 0.65);
-  const prezzoFatturato = roundPrice(quote.total);
   const prezzoFinale = roundPrice(quote.total);
   const scontoperTe = roundPrice(prezzoFinale * moltiplicatoreSconto);
 
-  // Costruisci lista servizi dinamica dal formData
-  const servizi = [];
-
-  if (dettagliFormazione) {
-    servizi.push({
-      titolo: 'Formazione musicale',
-      desc: dettagliFormazione
-    });
-  }
-
-  if (fd.numMomenti > 1) {
-    if (fd.momenti?.some(m => m.titolo)) {
-      fd.momenti.forEach(m => {
-        if (m.titolo) servizi.push({ titolo: m.titolo, desc: m.descrizione || '' });
-      });
-    } else {
-      servizi.push({
-        titolo: `${fd.numMomenti} momenti musicali`,
-        desc: 'Set musicali suddivisi in base alla scaletta dell\'evento'
-      });
-    }
-  }
-
-  servizi.push({
-    titolo: `Impianto audio professionale${fd.numImpianti > 1 ? ` (×${fd.numImpianti})` : ''}`,
-    desc: 'Amplificazione, mixer, casse e microfonazione completa'
-  });
-
-  if (Number(fd.costoDj) > 0) {
-    servizi.push({
-      titolo: 'DJ Set',
-      desc: 'Servizio DJ con consolle e playlist personalizzata'
-    });
-  }
-
-  if (fd.usaBraniRichiesta) {
-    servizi.push({
-      titolo: 'Brani su richiesta',
-      desc: 'Studio e preparazione di brani specifici richiesti dal cliente'
-    });
-  }
-
-  if (fd.usaCoordinator) {
-    servizi.push({
-      titolo: 'Event Coordinator',
-      desc: 'Coordinamento e gestione della parte musicale durante l\'evento'
-    });
-  }
-
-  if (fd.distanzaKm > 0) {
-    servizi.push({
-      titolo: 'Trasferta inclusa',
-      desc: `Spostamento da Firenze a ${fd.address || quote.location} (${fd.distanzaKm} km)`
-    });
-  }
-
-  if (fd.usaPernottamento) {
-    servizi.push({
-      titolo: `Pernottamento${fd.numNotti > 1 ? ` (${fd.numNotti} notti)` : ''}`,
-      desc: 'Alloggio per i musicisti incluso nel pacchetto'
-    });
-  }
-
-  // Converti SVG logo in PNG data URL per html2canvas
+  // Converti SVG logo in PNG data URL (una sola volta)
   const svgToPngDataUrl = (svgUrl) => {
     return new Promise((resolve) => {
-      const img = new Image();
+      const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         // Usa le proporzioni reali del logo (1774x1183)
@@ -1367,19 +1531,29 @@ function PrintView({ quote, onBack }) {
     });
   };
 
+  useEffect(() => {
+    let active = true;
+    svgToPngDataUrl(logoIMD).then(png => { if (active) setLogoPng(png); });
+    return () => { active = false; };
+  }, []);
+
+  // Unica fonte di verità: il documento PDF react-pdf
+  const pdfDoc = (
+    <QuotePDF
+      quote={quote}
+      prezzoFinale={prezzoFinale}
+      scontoperTe={scontoperTe}
+      logoPng={logoPng}
+      band={band}
+      acconto={acconto}
+      fd={fd}
+    />
+  );
+
   const handleDownloadPdf = async () => {
     setIsGenerating(true);
     try {
-      const logoPng = await svgToPngDataUrl(logoIMD);
-      const blob = await pdf(
-        <QuotePDF
-          quote={quote}
-          servizi={servizi}
-          prezzoFinale={prezzoFinale}
-          scontoperTe={scontoperTe}
-          logoPng={logoPng}
-        />
-      ).toBlob();
+      const blob = await pdf(pdfDoc).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1396,14 +1570,14 @@ function PrintView({ quote, onBack }) {
 
   return (
     <div className="min-h-screen bg-stone-100 p-4 md:p-8 flex flex-col items-center animate-in fade-in">
-      
-      {/* Bottoni di controllo esterni al PDF */}
-      <div className="max-w-3xl w-full flex justify-end gap-3 mb-4">
+
+      {/* Bottoni di controllo */}
+      <div className="max-w-4xl w-full flex justify-end gap-3 mb-4">
         <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-800 rounded-lg transition-colors font-medium shadow-sm">
           <ArrowLeft size={18} /> Chiudi
         </button>
-        <button 
-          onClick={handleDownloadPdf} 
+        <button
+          onClick={handleDownloadPdf}
           disabled={isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
         >
@@ -1411,76 +1585,10 @@ function PrintView({ quote, onBack }) {
         </button>
       </div>
 
-      <div id="preventivo-container" className="max-w-3xl w-full bg-white shadow-xl p-10 md:p-16" style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-        
-        {/* Header con logo e info a sinistra */}
-        <div className="mb-8">
-          <img src={logoIMD} alt="The Italian Music Designer" className="h-48 w-auto mb-6 mx-auto block" />
-          <div className="space-y-1 font-sans text-sm">
-            <p className="text-stone-800"><span className="text-stone-400">Preventivo - </span> The IMD</p>
-            <p className="text-stone-800"><span className="text-stone-400">Intestatario:</span> {quote.client}</p>
-            <p className="text-stone-800"><span className="text-stone-400">Location:</span> {quote.location}</p>
-            <p className="text-stone-800"><span className="text-stone-400">Evento:</span> {quote.type}</p>
-            <p className="text-stone-800"><span className="text-stone-400">Data:</span> {quote.date}</p>
-          </div>
-        </div>
-
-
-        {/* Proposta Artistica */}
-        <div className="mb-12">
-          <h3 className="text-xs uppercase tracking-[0.2em] text-stone-400 font-sans mb-6">Proposta Artistica</h3>
-          <div className="space-y-4">
-            {servizi.map((s, i) => (
-              <div key={i} className="flex items-start gap-3 py-2">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-stone-400 flex-shrink-0"></span>
-                <div>
-                  <p className="text-stone-800 font-medium" style={{ fontFamily: "'Georgia', serif" }}>{s.titolo}</p>
-                  <p className="text-stone-400 text-sm font-sans mt-0.5">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="w-full h-px bg-stone-200 mb-10"></div>
-
-        {/* Riepilogo Economico */}
-        <div className="mb-6">
-          <h3 className="text-xs uppercase tracking-[0.2em] text-stone-400 font-sans mb-6">Riepilogo economico</h3>
-          
-          <div className="bg-stone-50 p-8 space-y-5">
-            {/* Prezzo finale con IVA esposta a parte */}
-            <div className="flex justify-between items-baseline">
-              <span className="text-stone-600 font-sans text-sm">Prezzo finale</span>
-              <span className="text-2xl font-light text-stone-800">€ {prezzoFinale.toLocaleString('it-IT')} + IVA 22%</span>
-            </div>
-
-            <div className="w-full h-px bg-stone-200"></div>
-
-            {/* Sconto per te */}
-            <div className="flex justify-between items-baseline">
-              <div>
-                <span className="text-stone-800 font-sans text-sm font-medium">Prezzo riservato a te</span>
-              </div>
-              <span className="text-3xl font-light text-stone-900">€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Note */}
-        <div className="mt-14 pt-8 border-t border-stone-100">
-          <p className="text-xs text-stone-400 font-sans leading-relaxed text-center">
-            Il presente preventivo ha validità 30 giorni dalla data di emissione.<br />
-          </p>
-        </div>
-
-        {/* Footer brand */}
-        <div className="mt-10 text-center">
-          <div className="w-8 h-px bg-stone-300 mx-auto mb-4"></div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-stone-300 font-sans">The Italian Music Designer</p>
-        </div>
-
-      </div>
+      {/* Anteprima live del PDF (stessa fonte del file scaricato) */}
+      <PDFViewer className="max-w-4xl w-full h-[80vh] rounded-xl shadow-xl border border-stone-200" showToolbar={false}>
+        {pdfDoc}
+      </PDFViewer>
     </div>
   );
 }
@@ -1562,6 +1670,11 @@ function Login() {
 // ==========================================
 // COMPONENTE PRINCIPALE (ROUTING)
 // ==========================================
+// Helpers localStorage per modalità DEV (nessuna sessione Supabase disponibile)
+const DEV_KEY = 'imd_quotes_dev';
+const devLoad = () => { try { return JSON.parse(localStorage.getItem(DEV_KEY) || '[]'); } catch { return []; } };
+const devSave = (q) => localStorage.setItem(DEV_KEY, JSON.stringify(q));
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -1589,6 +1702,10 @@ export default function App() {
 
   // Carica i preventivi da Supabase (mappa form_data -> formData)
   const fetchQuotes = useCallback(async () => {
+    if (import.meta.env.DEV) {
+      setQuotes(devLoad());
+      return;
+    }
     const { data, error } = await supabase
       .from('quotes')
       .select('*')
@@ -1615,6 +1732,10 @@ export default function App() {
   };
 
   const handleApprove = async (id) => {
+    if (import.meta.env.DEV) {
+      const updated = quotes.map(q => q.id === id ? { ...q, status: 'Approvato' } : q);
+      setQuotes(updated); devSave(updated); return;
+    }
     const { error } = await supabase.from('quotes').update({ status: 'Approvato' }).eq('id', id);
     if (error) {
       alert('Errore: ' + error.message);
@@ -1624,6 +1745,10 @@ export default function App() {
   };
 
   const handleArchive = async (id) => {
+    if (import.meta.env.DEV) {
+      const updated = quotes.map(q => q.id === id ? { ...q, status: 'Archiviato' } : q);
+      setQuotes(updated); devSave(updated); return;
+    }
     const { error } = await supabase.from('quotes').update({ status: 'Archiviato' }).eq('id', id);
     if (error) {
       alert('Errore: ' + error.message);
@@ -1643,6 +1768,11 @@ export default function App() {
   };
 
   const handleSaveNewQuote = async (newQuote) => {
+    if (import.meta.env.DEV) {
+      const updated = [...quotes, newQuote];
+      setQuotes(updated); devSave(updated);
+      setCurrentView('dashboard'); return;
+    }
     const { formData, ...rest } = newQuote;
     const { error } = await supabase.from('quotes').insert({ ...rest, form_data: formData });
     if (error) {
@@ -1654,6 +1784,11 @@ export default function App() {
   };
 
   const handleUpdateQuote = async (updatedQuote) => {
+    if (import.meta.env.DEV) {
+      const updated = quotes.map(q => q.id === updatedQuote.id ? updatedQuote : q);
+      setQuotes(updated); devSave(updated);
+      setSelectedQuote(null); setCurrentView('dashboard'); return;
+    }
     const { formData, ...rest } = updatedQuote;
     const { error } = await supabase.from('quotes').update({ ...rest, form_data: formData }).eq('id', updatedQuote.id);
     if (error) {
