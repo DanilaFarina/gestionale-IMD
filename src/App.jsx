@@ -9,6 +9,8 @@ import ptSerifBold from '@fontsource/pt-serif/files/pt-serif-latin-700-normal.wo
 import robotoRegular from '@fontsource/roboto/files/roboto-latin-400-normal.woff';
 import robotoItalic from '@fontsource/roboto/files/roboto-latin-400-italic.woff';
 import robotoBold from '@fontsource/roboto/files/roboto-latin-700-normal.woff';
+import brandonLight from './assets/heiti-sc-light.ttf';
+import brandonMedium from './assets/heiti-tc-medium.ttf';
 import { supabase } from './supabaseClient';
 import { 
   Plus, 
@@ -52,6 +54,13 @@ Font.register({
     { src: robotoRegular, fontWeight: 'normal' },
     { src: robotoBold, fontWeight: 'bold' },
     { src: robotoItalic, fontStyle: 'italic' },
+  ],
+});
+Font.register({
+  family: 'Heiti',
+  fonts: [
+    { src: brandonLight, fontWeight: 'normal' },
+    { src: brandonMedium, fontWeight: 'bold' },
   ],
 });
 // Disabilita la sillabazione automatica (spezza male le parole accentate)
@@ -317,12 +326,10 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     date: '',
     address: '',
     type: 'Matrimonio',
-    band: '',
     acconto: 0,
     numeroOspiti: '',
     orarioEvento: '',
     numPasti: 3,
-    repertorio: '',
     numMomenti: 1,
     momenti: [{ titolo: '', descrizione: '', orario: '' }],
     numMusicisti: 3,
@@ -338,7 +345,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     costoCoordinator: 100,
     // Trasferta
     distanzaKm: 0,
-    prezzoBenzina: 1.75,
+    prezzoBenzina: 1.95,
     consumoMedio: 14,
     numMacchine: 1,
     andataRitorno: true,
@@ -721,11 +728,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome Band / Formazione</label>
-                    <input type="text" name="band" value={formData.band} onChange={handleChange} placeholder="es. Talking Ties Trio" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                    <p className="text-xs text-slate-500 mt-1">Appare nel PDF come nome del gruppo</p>
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Data Evento</label>
                     <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
@@ -753,10 +755,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Numero Pasti</label>
                     <input type="number" name="numPasti" min="0" value={formData.numPasti} onChange={handleChange} placeholder="es. 3" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                     <p className="text-xs text-slate-500 mt-1">Pasti per gli artisti (Vitto nelle condizioni PDF)</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Repertorio Musicale</label>
-                    <input type="text" name="repertorio" value={formData.repertorio} onChange={handleChange} placeholder="es. Swing italiano, jazz, New Orleans, ragtime" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                   <div className="md:col-span-2">
                     <div className="flex items-center justify-between mb-3">
@@ -1268,47 +1266,50 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 // DOCUMENTO PDF PREVENTIVO (vettoriale)
 // ==========================================
 const pdfStyles = StyleSheet.create({
-  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'PT Serif', color: '#292524', fontSize: 11 },
-  logo: { width: 200, height: 133, alignSelf: 'center', marginBottom: 24, objectFit: 'contain' },
+  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'Heiti', color: '#000000', fontSize: 11 },
+  logo: { width: 200, height: 133, alignSelf: 'center', marginBottom: 4, objectFit: 'contain' },
   infoBlock: { marginBottom: 40 },
-  infoLine: { fontFamily: 'Roboto', fontSize: 10, marginBottom: 3, color: '#292524' },
-  infoLabel: { color: '#a8a29e' },
-  sectionTitle: { fontFamily: 'Roboto', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#a8a29e', marginBottom: 18 },
+  infoLine: { fontFamily: 'Heiti', fontSize: 10, marginBottom: 3, color: '#000000' },
+  infoLabel: { color: '#000000' },
+  sectionTitle: { fontFamily: 'Heiti', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#000000', marginBottom: 18 },
   serviceRow: { flexDirection: 'row', marginBottom: 12 },
   bullet: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#a8a29e', marginTop: 6, marginRight: 10 },
-  serviceTitle: { fontFamily: 'PT Serif', fontSize: 12, color: '#292524' },
-  serviceDesc: { fontFamily: 'Roboto', fontSize: 9, color: '#a8a29e', marginTop: 2 },
+  serviceTitle: { fontFamily: 'Heiti', fontSize: 12, color: '#000000' },
+  serviceDesc: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', marginTop: 2 },
   divider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 32 },
-  ecoBox: { backgroundColor: '#fafaf9', padding: 28 },
+  ecoBox: { backgroundColor: '#fafaf9', padding: 16 },
   ecoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  ecoLabel: { fontFamily: 'Roboto', fontSize: 10, color: '#57534e' },
-  ecoLabelStrong: { fontFamily: 'Roboto', fontSize: 10, color: '#292524', fontWeight: 'bold' },
-  ecoValue: { fontSize: 20, color: '#292524' },
-  ecoValueBig: { fontSize: 26, color: '#1c1917' },
-  ecoDivider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 18 },
-  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Roboto', fontSize: 8, color: '#a8a29e', textAlign: 'center', lineHeight: 1.5 },
+  ecoLabel: { fontFamily: 'Heiti', fontSize: 9, color: '#000000' },
+  ecoLabelStrong: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', fontWeight: 'bold' },
+  ecoValue: { fontSize: 14, color: '#000000' },
+  ecoValueBig: { fontSize: 16, color: '#000000' },
+  ecoDivider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 10 },
+  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Heiti', fontSize: 8, color: '#6f4526', textAlign: 'center', lineHeight: 1.5 },
   footer: { marginTop: 32, alignItems: 'center' },
   footerLine: { width: 32, height: 1, backgroundColor: '#d6d3d1', marginBottom: 12 },
-  footerBrand: { fontFamily: 'Roboto', fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: '#d6d3d1' },
+  footerBrand: { fontFamily: 'Heiti', fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: '#000000' },
   ecoSubRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
-  ecoSubLabel: { fontFamily: 'Roboto', fontSize: 9, color: '#78716c' },
-  ecoSubValue: { fontFamily: 'Roboto', fontSize: 13, color: '#292524' },
-  docMeta: { fontFamily: 'Roboto', fontSize: 8, color: '#a8a29e', textAlign: 'center', marginBottom: 24 },
-  sectionHeader: { fontFamily: 'Roboto', fontSize: 7.5, letterSpacing: 1.5, color: '#292524', marginBottom: 10, marginTop: 20, borderBottomWidth: 0.5, borderBottomColor: '#e7e5e4', paddingBottom: 4 },
+  ecoSubLabel: { fontFamily: 'Heiti', fontSize: 9, color: '#000000' },
+  ecoSubValue: { fontFamily: 'Heiti', fontSize: 9, color: '#000000' },
+  docMeta: { fontFamily: 'Heiti', fontSize: 8, color: '#6f4526', textAlign: 'center', marginBottom: 24 },
+  sectionHeader: { fontFamily: 'Heiti', fontSize: 7.5, letterSpacing: 1.5, color: '#6f4526', marginBottom: 10, marginTop: 20, borderBottomWidth: 0.5, borderBottomColor: '#e7e5e4', paddingBottom: 4 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   infoItem: { width: '50%', marginBottom: 6, paddingRight: 8 },
   infoItemFull: { width: '100%', marginBottom: 6 },
-  fieldLabel: { fontFamily: 'Roboto', fontSize: 7.5, color: '#a8a29e', marginBottom: 1 },
-  fieldValue: { fontFamily: 'Roboto', fontSize: 10, color: '#292524' },
+  fieldLabel: { fontFamily: 'Heiti', fontSize: 7.5, color: '#6f4526', marginBottom: 1 },
+  fieldValue: { fontFamily: 'Heiti', fontSize: 10, color: '#000000' },
   momentoBlock: { marginBottom: 12, paddingLeft: 10, borderLeftWidth: 1.5, borderLeftColor: '#e7e5e4' },
-  momentoTitle: { fontFamily: 'Roboto', fontSize: 10, color: '#292524', marginBottom: 2 },
-  momentoDesc: { fontFamily: 'Roboto', fontSize: 9, color: '#a8a29e', lineHeight: 1.4 },
+  momentoRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'flex-start' },
+  momentoBullet: { fontFamily: 'Heiti', fontSize: 10, color: '#6f4526', width: 12 },
+  momentoContent: { flex: 1 },
+  momentoTitle: { fontFamily: 'Heiti', fontSize: 10, color: '#000000', marginBottom: 2 , fontWeight: '800' },
+  momentoDesc: { fontFamily: 'Heiti', fontSize: 10, color: '#000000', lineHeight: 1.4 },
   bulletRow: { flexDirection: 'row', marginBottom: 4 },
-  bulletDot: { fontFamily: 'Roboto', fontSize: 9, color: '#a8a29e', width: 10 },
-  bulletText: { fontFamily: 'Roboto', fontSize: 9, color: '#57534e', flex: 1, lineHeight: 1.4 },
+  bulletDot: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', width: 10 },
+  bulletText: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', flex: 1, lineHeight: 1.4 },
   twoColLeft: { flex: 1, marginRight: 14 },
   twoColRight: { flex: 1 },
-  colSubHeader: { fontFamily: 'Roboto', fontSize: 7.5, color: '#a8a29e', letterSpacing: 1, marginBottom: 6 },
+  colSubHeader: { fontFamily: 'Heiti', fontSize: 7.5, color: '#000000', letterSpacing: 1, marginBottom: 6 },
 });
 
 function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
@@ -1368,103 +1369,116 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         </View>
 
         {/* 2. Proposta Artistica */}
-        <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica</Text>
-        {(fd.momenti || []).filter(m => m.titolo).length > 0
-          ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
-              <View key={i} style={pdfStyles.momentoBlock}>
-                <Text style={pdfStyles.momentoTitle}>
-                  {m.titolo}{m.orario ? `  \u2014  Orario: ${m.orario}` : ''}
-                </Text>
-                {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
-              </View>
-            ))
-          : <View style={pdfStyles.momentoBlock}><Text style={pdfStyles.momentoDesc}>Nessun momento specificato</Text></View>
-        }
-
-        {/* 3. Condizioni Economiche */}
-        <Text style={pdfStyles.sectionHeader}>3. Condizioni Economiche</Text>
-        <View style={pdfStyles.ecoBox}>
-          <View style={pdfStyles.ecoRow}>
-            <Text style={pdfStyles.ecoLabel}>Prezzo Lordo</Text>
-            <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + IVA 22%</Text>
-          </View>
-          <View style={pdfStyles.ecoDivider} />
-          <View style={pdfStyles.ecoRow}>
-            <Text style={pdfStyles.ecoLabelStrong}>Sconto per Te</Text>
-            <Text style={pdfStyles.ecoValueBig}>€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</Text>
-          </View>
-          {acconto > 0 ? (
-            <>
-              <View style={pdfStyles.ecoDivider} />
-              <View style={pdfStyles.ecoSubRow}>
-                <Text style={pdfStyles.ecoSubLabel}>Acconto (caparra confirmatoria)</Text>
-                <Text style={pdfStyles.ecoSubValue}>€ {acconto.toLocaleString('it-IT')}</Text>
-              </View>
-            </>
-          ) : null}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica</Text>
+          {(fd.momenti || []).filter(m => m.titolo).length > 0
+            ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
+                <View key={i} style={pdfStyles.momentoRow} wrap={false}>
+                  <Text style={pdfStyles.momentoBullet}>•</Text>
+                  <View style={pdfStyles.momentoContent}>
+                    <Text style={pdfStyles.momentoTitle}>
+                      {m.titolo}{m.orario ? `  \u2014  Orario: ${m.orario}` : ''}
+                    </Text>
+                    {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
+                  </View>
+                </View>
+              ))
+            : <View style={pdfStyles.momentoRow}><Text style={pdfStyles.momentoDesc}>Nessun momento specificato</Text></View>
+          }
         </View>
 
-        {/* Inclusi / Esclusi */}
-        <View style={{ marginTop: 14, flexDirection: 'row' }}>
-          <View style={pdfStyles.twoColLeft}>
-            <Text style={pdfStyles.colSubHeader}>INCLUSO NEL PREZZO</Text>
-            {inclusi.map((item, i) => (
-              <View key={i} style={pdfStyles.bulletRow}>
-                <Text style={pdfStyles.bulletDot}>•</Text>
-                <Text style={pdfStyles.bulletText}>{item}</Text>
-              </View>
-            ))}
+        {/* 3. Condizioni Economiche */}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>3. Condizioni Economiche</Text>
+          <View style={pdfStyles.ecoBox}>
+            <View style={pdfStyles.ecoRow}>
+              <Text style={pdfStyles.ecoLabel}>Prezzo Lordo</Text>
+              <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + IVA 22%</Text>
+            </View>
+            <View style={pdfStyles.ecoDivider} />
+            <View style={pdfStyles.ecoRow}>
+              <Text style={pdfStyles.ecoLabelStrong}>Sconto per Te</Text>
+              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</Text>
+            </View>
+            {acconto > 0 ? (
+              <>
+                <View style={pdfStyles.ecoDivider} />
+                <View style={pdfStyles.ecoSubRow}>
+                  <Text style={pdfStyles.ecoSubLabel}>Acconto (caparra confirmatoria)</Text>
+                  <Text style={pdfStyles.ecoSubValue}>€ {acconto.toLocaleString('it-IT')}</Text>
+                </View>
+              </>
+            ) : null}
           </View>
-          <View style={pdfStyles.twoColRight}>
-            <Text style={pdfStyles.colSubHeader}>ESCLUSO DAL PREZZO</Text>
-            {esclusioni.map((item, i) => (
-              <View key={i} style={pdfStyles.bulletRow}>
-                <Text style={pdfStyles.bulletDot}>•</Text>
-                <Text style={pdfStyles.bulletText}>{item}</Text>
-              </View>
-            ))}
+
+          {/* Inclusi / Esclusi */}
+          <View style={{ marginTop: 14, flexDirection: 'row' }}>
+            <View style={pdfStyles.twoColLeft}>
+              <Text style={pdfStyles.colSubHeader}>INCLUSO NEL PREZZO</Text>
+              {inclusi.map((item, i) => (
+                <View key={i} style={pdfStyles.bulletRow}>
+                  <Text style={pdfStyles.bulletDot}>•</Text>
+                  <Text style={pdfStyles.bulletText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={pdfStyles.twoColRight}>
+              <Text style={pdfStyles.colSubHeader}>ESCLUSO DAL PREZZO</Text>
+              {esclusioni.map((item, i) => (
+                <View key={i} style={pdfStyles.bulletRow}>
+                  <Text style={pdfStyles.bulletDot}>•</Text>
+                  <Text style={pdfStyles.bulletText}>{item}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         </View>
 
         {/* 4. Rider */}
-        <Text style={pdfStyles.sectionHeader}>4. Rider Tecnico &amp; Logistica</Text>
-        {[
-          `Attrezzatura audio: ${Number(fd.numImpianti) > 0 ? 'Fornita dalla band' : 'A cura del cliente/service'}`,
-          'Alimentazione elettrica idonea nei punti di esibizione',
-          "Camerino o area riservata per cambi, deposito strumenti e beni personali dei musicisti",
-          "Ombra o copertura per il sole (tenda/ombrellone) per artisti e strumenti in caso di esibizione all'aperto",
-          "Accesso alla location almeno 1 ora prima per montaggio e soundcheck",
-          `Vitto: pasto caldo per n. ${fd.numPasti || ''} collaboratori`,
-        ].map((item, i) => (
-          <View key={i} style={pdfStyles.bulletRow}>
-            <Text style={pdfStyles.bulletDot}>•</Text>
-            <Text style={pdfStyles.bulletText}>{item}</Text>
-          </View>
-        ))}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>4. Rider Tecnico &amp; Logistica</Text>
+          {[
+            `Attrezzatura audio: ${Number(fd.numImpianti) > 0 ? 'Fornita dalla band' : 'A cura del cliente/service'}`,
+            'Alimentazione elettrica idonea nei punti di esibizione',
+            "Camerino o area riservata per cambi, deposito strumenti e beni personali dei musicisti",
+            "Ombra o copertura per il sole (tenda/ombrellone) per artisti e strumenti in caso di esibizione all'aperto",
+            "Accesso alla location almeno 1 ora prima per montaggio e soundcheck",
+            `Vitto: pasto caldo per n. ${fd.numPasti || ''} collaboratori`,
+          ].map((item, i) => (
+            <View key={i} style={pdfStyles.bulletRow}>
+              <Text style={pdfStyles.bulletDot}>•</Text>
+              <Text style={pdfStyles.bulletText}>{item}</Text>
+            </View>
+          ))}
+        </View>
 
         {/* 5. Web */}
-        <Text style={pdfStyles.sectionHeader}>5. Materiale Multimediale</Text>
-        {['Sito Web: www.italianmusicdesigner.com', 'Video: youtube.com/@ItalianMusicDesigner'].map((item, i) => (
-          <View key={i} style={pdfStyles.bulletRow}>
-            <Text style={pdfStyles.bulletDot}>•</Text>
-            <Text style={pdfStyles.bulletText}>{item}</Text>
-          </View>
-        ))}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>5. Materiale Multimediale</Text>
+          {['Sito Web: www.italianmusicdesigner.com', 'Video: youtube.com/@ItalianMusicDesigner'].map((item, i) => (
+            <View key={i} style={pdfStyles.bulletRow}>
+              <Text style={pdfStyles.bulletDot}>•</Text>
+              <Text style={pdfStyles.bulletText}>{item}</Text>
+            </View>
+          ))}
+        </View>
 
         {/* 6. Contatti */}
-        <Text style={pdfStyles.sectionHeader}>6. Contatti</Text>
-        <View style={pdfStyles.infoGrid}>
-          <View style={pdfStyles.infoItem}>
-            <Text style={pdfStyles.fieldLabel}>Referente Artistico</Text>
-            <Text style={pdfStyles.fieldValue}>Giovanni Gargini</Text>
-          </View>
-          <View style={pdfStyles.infoItem}>
-            <Text style={pdfStyles.fieldLabel}>Telefono</Text>
-            <Text style={pdfStyles.fieldValue}>+39 333 828 3982</Text>
-          </View>
-          <View style={pdfStyles.infoItemFull}>
-            <Text style={pdfStyles.fieldLabel}>E-mail</Text>
-            <Text style={pdfStyles.fieldValue}>giovannigargini@gmail.com</Text>
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>6. Contatti</Text>
+          <View style={pdfStyles.infoGrid}>
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Referente Artistico</Text>
+              <Text style={pdfStyles.fieldValue}>Giovanni Gargini</Text>
+            </View>
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Telefono</Text>
+              <Text style={pdfStyles.fieldValue}>+39 333 828 3982</Text>
+            </View>
+            <View style={pdfStyles.infoItemFull}>
+              <Text style={pdfStyles.fieldLabel}>E-mail</Text>
+              <Text style={pdfStyles.fieldValue}>giovannigargini@gmail.com</Text>
+            </View>
           </View>
         </View>
 
