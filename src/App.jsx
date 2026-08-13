@@ -321,6 +321,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     acconto: 0,
     numeroOspiti: '',
     orarioEvento: '',
+    numPasti: 3,
     repertorio: '',
     numMomenti: 1,
     momenti: [{ titolo: '', descrizione: '', orario: '' }],
@@ -560,6 +561,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       date: formData.date || 'Da definire',
       location: formData.address || 'Da definire',
       total: calc.prezzoFinale,
+      prezzoLordo: calc.prezzoLordo,
+      scontoPerTe: calc.scontoPerTe,
       status: formData._editStatus || 'In attesa', 
       formData: { ...formData }
     };
@@ -745,6 +748,11 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Orario Evento</label>
                     <input type="text" name="orarioEvento" value={formData.orarioEvento} onChange={handleChange} placeholder="es. 18:00 – 01:00" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Numero Pasti</label>
+                    <input type="number" name="numPasti" min="0" value={formData.numPasti} onChange={handleChange} placeholder="es. 3" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    <p className="text-xs text-slate-500 mt-1">Pasti per gli artisti (Vitto nelle condizioni PDF)</p>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Repertorio Musicale</label>
@@ -1303,21 +1311,21 @@ const pdfStyles = StyleSheet.create({
   colSubHeader: { fontFamily: 'Roboto', fontSize: 7.5, color: '#a8a29e', letterSpacing: 1, marginBottom: 6 },
 });
 
-function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd }) {
+function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
   const today = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const inclusi = ['Performance musicale come da programma'];
   if (fd.usaCoordinator) inclusi.push('Consulenza, direzione e coordinamento artistico');
-  if (Number(fd.distanzaKm) > 0) inclusi.push(`Spese di trasferta (${fd.distanzaKm} km${fd.andataRitorno ? ' A/R' : ''})`);
+  if (Number(fd.distanzaKm) > 0) inclusi.push(`Spese di trasferta`);
   if (fd.usaPernottamento) inclusi.push(`Pernottamento (${fd.numNotti} nott${Number(fd.numNotti) > 1 ? 'i' : 'e'} \u00d7 ${fd.numMusicisti} musicisti)`);
-  if (Number(fd.numImpianti) > 0) inclusi.push(`Impianto audio professionale${Number(fd.numImpianti) > 1 ? ` (\u00d7${fd.numImpianti})` : ''}`);
+  if (Number(fd.numImpianti) > 0) inclusi.push(`Impianto/i audio professionale/i`);
   if (Number(fd.costoDj) > 0) inclusi.push('DJ Set');
   if (fd.usaBraniRichiesta) inclusi.push('Arrangiamento e studio di brani su richiesta');
 
   const esclusioni = [
     "Diritti d'Autore (S.I.A.E.) \u2013 a carico del Cliente (entro il giorno precedente l'evento)",
-    `Vitto per i Musicisti \u2013 pasto a sedere per n. ${fd.numMusicisti || ''} artisti`,
+    `Vitto \u2013 pasto a sedere per n. ${fd.numPasti || ''} collaboratori`,
   ];
 
   return (
@@ -1360,30 +1368,7 @@ function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd
         </View>
 
         {/* 2. Proposta Artistica */}
-        <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica &amp; Band</Text>
-        <View style={pdfStyles.infoGrid}>
-          <View style={pdfStyles.infoItem}>
-            <Text style={pdfStyles.fieldLabel}>Nome Band / Progetto</Text>
-            <Text style={pdfStyles.fieldValue}>{band || 'The Italian Music Designer'}</Text>
-          </View>
-          <View style={pdfStyles.infoItem}>
-            <Text style={pdfStyles.fieldLabel}>Numero Artisti</Text>
-            <Text style={pdfStyles.fieldValue}>{String(fd.numMusicisti || '')}</Text>
-          </View>
-          {fd.repertorio ? (
-            <View style={pdfStyles.infoItemFull}>
-              <Text style={pdfStyles.fieldLabel}>Repertorio Musicale</Text>
-              <Text style={pdfStyles.fieldValue}>{fd.repertorio}</Text>
-            </View>
-          ) : null}
-          <View style={pdfStyles.infoItem}>
-            <Text style={pdfStyles.fieldLabel}>Postazioni Musicali Distinte</Text>
-            <Text style={pdfStyles.fieldValue}>{String(fd.numImpianti || '')}</Text>
-          </View>
-        </View>
-
-        {/* 3. Momenti */}
-        <Text style={pdfStyles.sectionHeader}>3. Programma e Dettaglio dei Momenti</Text>
+        <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica</Text>
         {(fd.momenti || []).filter(m => m.titolo).length > 0
           ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
               <View key={i} style={pdfStyles.momentoBlock}>
@@ -1396,12 +1381,12 @@ function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd
           : <View style={pdfStyles.momentoBlock}><Text style={pdfStyles.momentoDesc}>Nessun momento specificato</Text></View>
         }
 
-        {/* 4. Condizioni Economiche */}
-        <Text style={pdfStyles.sectionHeader}>4. Condizioni Economiche</Text>
+        {/* 3. Condizioni Economiche */}
+        <Text style={pdfStyles.sectionHeader}>3. Condizioni Economiche</Text>
         <View style={pdfStyles.ecoBox}>
           <View style={pdfStyles.ecoRow}>
-            <Text style={pdfStyles.ecoLabel}>Prezzo Finale</Text>
-            <Text style={pdfStyles.ecoValue}>€ {prezzoFinale.toLocaleString('it-IT')} + IVA 22%</Text>
+            <Text style={pdfStyles.ecoLabel}>Prezzo Lordo</Text>
+            <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + IVA 22%</Text>
           </View>
           <View style={pdfStyles.ecoDivider} />
           <View style={pdfStyles.ecoRow}>
@@ -1441,15 +1426,15 @@ function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd
           </View>
         </View>
 
-        {/* 5. Rider */}
-        <Text style={pdfStyles.sectionHeader}>5. Rider Tecnico &amp; Logistica</Text>
+        {/* 4. Rider */}
+        <Text style={pdfStyles.sectionHeader}>4. Rider Tecnico &amp; Logistica</Text>
         {[
           `Attrezzatura audio: ${Number(fd.numImpianti) > 0 ? 'Fornita dalla band' : 'A cura del cliente/service'}`,
-          'Alimentazione elettrica idonea (prese Schuko) nei punti di esibizione',
+          'Alimentazione elettrica idonea nei punti di esibizione',
           "Camerino o area riservata per cambi, deposito strumenti e beni personali dei musicisti",
-          "Copertura/tenda per artisti e strumenti in caso di esibizione all'aperto",
+          "Ombra o copertura per il sole (tenda/ombrellone) per artisti e strumenti in caso di esibizione all'aperto",
           "Accesso alla location almeno 1 ora prima per montaggio e soundcheck",
-          `Vitto: pasto caldo per n. ${fd.numMusicisti || ''} artisti`,
+          `Vitto: pasto caldo per n. ${fd.numPasti || ''} collaboratori`,
         ].map((item, i) => (
           <View key={i} style={pdfStyles.bulletRow}>
             <Text style={pdfStyles.bulletDot}>•</Text>
@@ -1457,8 +1442,8 @@ function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd
           </View>
         ))}
 
-        {/* 6. Web */}
-        <Text style={pdfStyles.sectionHeader}>6. Materiale Multimediale</Text>
+        {/* 5. Web */}
+        <Text style={pdfStyles.sectionHeader}>5. Materiale Multimediale</Text>
         {['Sito Web: www.italianmusicdesigner.com', 'Video: youtube.com/@ItalianMusicDesigner'].map((item, i) => (
           <View key={i} style={pdfStyles.bulletRow}>
             <Text style={pdfStyles.bulletDot}>•</Text>
@@ -1466,8 +1451,8 @@ function QuotePDF({ quote, prezzoFinale, scontoperTe, logoPng, band, acconto, fd
           </View>
         ))}
 
-        {/* 7. Contatti */}
-        <Text style={pdfStyles.sectionHeader}>7. Contatti</Text>
+        {/* 6. Contatti */}
+        <Text style={pdfStyles.sectionHeader}>6. Contatti</Text>
         <View style={pdfStyles.infoGrid}>
           <View style={pdfStyles.infoItem}>
             <Text style={pdfStyles.fieldLabel}>Referente Artistico</Text>
@@ -1505,10 +1490,9 @@ function PrintView({ quote, onBack }) {
   const band = fd.band || '';
   const acconto = Number(fd.acconto || 0);
 
-  // Calcolo prezzi finali
-  const moltiplicatoreSconto = Number(fd.sconto || 0.65);
-  const prezzoFinale = roundPrice(quote.total);
-  const scontoperTe = roundPrice(prezzoFinale * moltiplicatoreSconto);
+  // Prezzi mostrati dall'app (nessun ricalcolo nel PDF)
+  const prezzoLordo = roundPrice(quote.prezzoLordo ?? (quote.total / 0.6));
+  const scontoperTe = roundPrice(quote.scontoPerTe ?? (prezzoLordo * Number(fd.sconto || 0.65)));
 
   // Converti SVG logo in PNG data URL (una sola volta)
   const svgToPngDataUrl = (svgUrl) => {
@@ -1541,7 +1525,7 @@ function PrintView({ quote, onBack }) {
   const pdfDoc = (
     <QuotePDF
       quote={quote}
-      prezzoFinale={prezzoFinale}
+      prezzoLordo={prezzoLordo}
       scontoperTe={scontoperTe}
       logoPng={logoPng}
       band={band}
