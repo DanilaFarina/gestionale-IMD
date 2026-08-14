@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import { Document, Page, View, Text, Image, StyleSheet, pdf, PDFViewer, Font } from '@react-pdf/renderer';
 import logoIMD from './assets/logo-imd.svg';
@@ -9,8 +9,12 @@ import ptSerifBold from '@fontsource/pt-serif/files/pt-serif-latin-700-normal.wo
 import robotoRegular from '@fontsource/roboto/files/roboto-latin-400-normal.woff';
 import robotoItalic from '@fontsource/roboto/files/roboto-latin-400-italic.woff';
 import robotoBold from '@fontsource/roboto/files/roboto-latin-700-normal.woff';
-import brandonLight from './assets/heiti-sc-light.ttf';
-import brandonMedium from './assets/heiti-tc-medium.ttf';
+import garamondRegular from '@fontsource/eb-garamond/files/eb-garamond-latin-400-normal.woff';
+import garamondMedium from '@fontsource/eb-garamond/files/eb-garamond-latin-500-normal.woff';
+import garamondSemibold from '@fontsource/eb-garamond/files/eb-garamond-latin-600-normal.woff';
+import garamondBold from '@fontsource/eb-garamond/files/eb-garamond-latin-700-normal.woff';
+import garamondExtrabold from '@fontsource/eb-garamond/files/eb-garamond-latin-800-normal.woff';
+import garamondItalic from '@fontsource/eb-garamond/files/eb-garamond-latin-400-italic.woff';
 import { supabase } from './supabaseClient';
 import { 
   Plus, 
@@ -34,7 +38,8 @@ import {
   Car,
   Users,
   LogOut,
-  Mail
+  Mail,
+  FileText
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
@@ -56,11 +61,19 @@ Font.register({
     { src: robotoItalic, fontStyle: 'italic' },
   ],
 });
+// Font PDF: EB Garamond (elegante). L'alias di famiglia resta 'Heiti' per compatibilità con gli stili esistenti.
+// Registriamo tutti i pesi usati dagli stili per evitare fallback a Helvetica su fontWeight non registrati.
 Font.register({
   family: 'Heiti',
   fonts: [
-    { src: brandonLight, fontWeight: 'normal' },
-    { src: brandonMedium, fontWeight: 'bold' },
+    { src: garamondRegular, fontWeight: 'normal' },
+    { src: garamondRegular, fontWeight: 400 },
+    { src: garamondMedium, fontWeight: 500 },
+    { src: garamondSemibold, fontWeight: 600 },
+    { src: garamondBold, fontWeight: 'bold' },
+    { src: garamondBold, fontWeight: 700 },
+    { src: garamondExtrabold, fontWeight: 800 },
+    { src: garamondItalic, fontStyle: 'italic' },
   ],
 });
 // Disabilita la sillabazione automatica (spezza male le parole accentate)
@@ -76,6 +89,26 @@ function roundPrice(value, step = PRICE_ROUNDING_STEP) {
   return amount - lower < upper - amount ? lower : upper;
 }
 
+// Converte l'SVG del logo in PNG data URL (usato dai PDF)
+const svgToPngDataUrl = (svgUrl) => {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const width = 1774;
+      const height = 1183;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve('');
+    img.src = svgUrl;
+  });
+}
+
 function formatMultiplier(value) {
   return Number(value || 0).toLocaleString('it-IT', {
     minimumFractionDigits: 0,
@@ -86,7 +119,7 @@ function formatMultiplier(value) {
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
-function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint, onDownloadInternalReport }) {
+function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint, onCreateContract }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
 
@@ -101,15 +134,6 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
 
   const totalApproved = quotes.filter(q => q.status === 'Approvato').length;
   const totalPending = quotes.filter(q => q.status === 'In attesa').length;
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'Approvato': return 'bg-green-100 text-green-800 border-green-200';
-      case 'In attesa': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Archiviato': return 'bg-gray-100 text-gray-600 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
 
   const getRowHighlight = (status) => {
     if (status === 'Approvato') return 'bg-green-50/30';
@@ -206,10 +230,9 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs font-semibold tracking-wider">
               <tr>
-                <th className="px-6 py-4">ID</th>
                 <th className="px-6 py-4">Dettagli Evento</th>
                 <th className="px-6 py-4">Totale (Escl. IVA)</th>
-                <th className="px-6 py-4">Stato</th>
+                <th className="px-3 py-4 text-center">Stato</th>
                 <th className="px-6 py-4 text-right">Azioni</th>
               </tr>
             </thead>
@@ -217,7 +240,6 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
               {filteredQuotes.length > 0 ? (
                 filteredQuotes.map((quote) => (
                   <tr key={quote.id} className={`transition-colors ${getRowHighlight(quote.status)}`}>
-                    <td className="px-6 py-4 font-mono text-slate-500">{quote.id}</td>
                     <td className="px-6 py-4">
                       <div className="font-semibold text-slate-900">{quote.client}</div>
                       <div className="flex items-center text-slate-500 text-xs mt-1 gap-3">
@@ -226,32 +248,29 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-900">€{quote.total.toLocaleString('it-IT')}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(quote.status)}`}>
-                        {quote.status === 'Approvato' && <CheckCircle size={14} className="mr-1.5" />}
-                        {quote.status === 'In attesa' && <Clock size={14} className="mr-1.5" />}
-                        {quote.status === 'Archiviato' && <XCircle size={14} className="mr-1.5" />}
-                        {quote.status}
+                    <td className="px-3 py-4 text-center">
+                      <span title={quote.status} className="inline-flex items-center justify-center">
+                        {quote.status === 'Approvato' && <CheckCircle size={20} className="text-green-600" />}
+                        {quote.status === 'In attesa' && <Clock size={20} className="text-yellow-500" />}
+                        {quote.status === 'Archiviato' && <XCircle size={20} className="text-gray-400" />}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => onPrint(quote)}
+                          title="Genera PDF Preventivo"
+                          className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                        >
+                          <Printer size={18} />
+                        </button>
                         {quote.status === 'Approvato' && (
-                          <button 
-                            onClick={() => onPrint(quote)}
-                            title="Genera PDF Preventivo"
-                            className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
-                          >
-                            <Printer size={18} />
-                          </button>
-                        )}
-                        {quote.formData && (
                           <button
-                            onClick={() => onDownloadInternalReport(quote)}
-                            title="Scarica Report Interno"
-                            className="p-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            onClick={() => onCreateContract(quote)}
+                            title="Crea Contratto"
+                            className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
                           >
-                            <Calculator size={18} />
+                            <FileText size={18} />
                           </button>
                         )}
                         {quote.status === 'In attesa' && (
@@ -285,7 +304,7 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-16 text-center">
+                  <td colSpan="4" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="bg-slate-100 p-4 rounded-full mb-3 text-slate-400">
                         <Briefcase size={32} />
@@ -319,19 +338,69 @@ const getFormazioneName = (n) => {
   return nomi[n] || `Ensemble (${n} musicisti)`;
 };
 
+// Compone un indirizzo in formato italiano (Via nr, CAP Città) dai dettagli Nominatim
+const formatItalianAddress = (s) => {
+  const a = s?.address || {};
+  const road = a.road || a.pedestrian || a.footway || a.neighbourhood || '';
+  const via = road ? `${road}${a.house_number ? ' ' + a.house_number : ''}` : '';
+  const citta = a.city || a.town || a.village || a.municipality || a.hamlet || '';
+  const localita = [a.postcode, citta].filter(Boolean).join(' ');
+  const compact = [via, localita].filter(Boolean).join(', ');
+  return compact || s?.display_name || '';
+};
+
+// Orario complessivo evento: inizio del primo momento – fine dell'ultimo
+const getOrarioComplessivo = (momenti = []) => {
+  const inizio = momenti.find(m => m?.inizio)?.inizio || '';
+  const fine = [...momenti].reverse().find(m => m?.fine)?.fine || '';
+  return [inizio, fine].filter(Boolean).join(' – ');
+};
+
+// Converte un orario testuale (17:00 / 17.00 / 17) in minuti dalla mezzanotte
+const parseTimeToMinutes = (str) => {
+  if (!str) return null;
+  const m = String(str).match(/(\d{1,2})[:.,hH]?(\d{2})?/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+};
+
+const minutesToTime = (mins) => {
+  const m = ((mins % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+// Durata in ore tra due orari (gestisce lo scavalco di mezzanotte)
+const computeDurataOre = (inizio, fine) => {
+  const a = parseTimeToMinutes(inizio);
+  const b = parseTimeToMinutes(fine);
+  if (a == null || b == null) return '';
+  let diff = b - a;
+  if (diff <= 0) diff += 1440;
+  return (diff / 60).toLocaleString('it-IT', { maximumFractionDigits: 1 });
+};
+
+// Sottrae un'ora a un orario testuale (per il montaggio)
+const subtractOneHour = (str) => {
+  const a = parseTimeToMinutes(str);
+  return a == null ? '' : minutesToTime(a - 60);
+};
+
 function QuoteForm({ onCancel, onSave, initialData }) {
   // Stato del form
   const defaults = {
     client: '',
     date: '',
     address: '',
+    nomeLocation: '',
     type: 'Matrimonio',
     acconto: 0,
     numeroOspiti: '',
-    orarioEvento: '',
     numPasti: 3,
     numMomenti: 1,
-    momenti: [{ titolo: '', descrizione: '', orario: '' }],
+    momenti: [{ titolo: '', descrizione: '', inizio: '', fine: '' }],
     numMusicisti: 3,
     cachetMusicista: 200,
     costoCerimonia: 0,
@@ -371,6 +440,11 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   const [distanzaLoading, setDistanzaLoading] = useState(false);
   const [distanzaError, setDistanzaError] = useState('');
   const [prezzoAutoFetched, setPrezzoAutoFetched] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suppressSuggestRef = useRef(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const logoPngRef = useRef('');
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -384,7 +458,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     setFormData(prev => {
       const n = Math.max(1, prev.numMomenti + delta);
       const momenti = [...(prev.momenti || [])];
-      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', orario: '' });
+      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', inizio: '', fine: '' });
       return { ...prev, numMomenti: n, momenti: momenti.slice(0, n) };
     });
   };
@@ -478,6 +552,39 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     return () => clearTimeout(timer);
   }, [formData.address, calcolaDistanza]);
 
+  // Autocompletamento indirizzo (Nominatim) mentre l'utente digita
+  useEffect(() => {
+    if (suppressSuggestRef.current) {
+      suppressSuggestRef.current = false;
+      return;
+    }
+    const q = (formData.address || '').trim();
+    if (q.length < 3) {
+      setAddressSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Italia')}&format=json&limit=5&addressdetails=1`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setAddressSuggestions(Array.isArray(data) ? data : []);
+      } catch {
+        setAddressSuggestions([]);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [formData.address]);
+
+  const selectAddressSuggestion = (s) => {
+    suppressSuggestRef.current = true;
+    setFormData(prev => ({ ...prev, address: formatItalianAddress(s) }));
+    setAddressSuggestions([]);
+    setShowSuggestions(false);
+  };
+
   // Calcoli in tempo reale (Il "Riepilogo Interno" / Excel)
   const calc = useMemo(() => {
     const n = v => Number(v) || 0;
@@ -557,23 +664,58 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     };
   }, [formData]);
 
+  const buildQuote = () => ({
+    id: formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+    client: formData.client || 'Cliente Sconosciuto',
+    type: formData.type,
+    date: formData.date || 'Da definire',
+    location: formData.address || 'Da definire',
+    total: calc.prezzoFinale,
+    prezzoLordo: calc.prezzoLordo,
+    scontoPerTe: calc.scontoPerTe,
+    status: formData._editStatus || 'In attesa',
+    formData: { ...formData }
+  });
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if(!formData.client) return alert("Inserisci almeno il nome del cliente!");
+    onSave(buildQuote());
+  };
 
-    const newQuote = {
-      id: formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-      client: formData.client || 'Cliente Sconosciuto',
-      type: formData.type,
-      date: formData.date || 'Da definire',
-      location: formData.address || 'Da definire',
-      total: calc.prezzoFinale,
-      prezzoLordo: calc.prezzoLordo,
-      scontoPerTe: calc.scontoPerTe,
-      status: formData._editStatus || 'In attesa', 
-      formData: { ...formData }
-    };
-    onSave(newQuote);
+  const handleDownloadPdf = async () => {
+    if (!formData.client) return alert("Inserisci almeno il nome del cliente!");
+    setPdfGenerating(true);
+    try {
+      if (!logoPngRef.current) {
+        logoPngRef.current = await svgToPngDataUrl(logoIMD);
+      }
+      const quote = buildQuote();
+      const fd = quote.formData;
+      const doc = (
+        <QuotePDF
+          quote={quote}
+          prezzoLordo={calc.prezzoLordo}
+          scontoperTe={calc.scontoPerTe}
+          logoPng={logoPngRef.current}
+          band={fd.band || ''}
+          acconto={Number(fd.acconto || 0)}
+          fd={fd}
+        />
+      );
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Preventivo_${quote.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Errore generazione PDF:', err);
+      alert('Errore nella generazione del PDF: ' + err.message);
+    } finally {
+      setPdfGenerating(false);
+    }
   };
 
   const handleDownloadInternalReport = () => {
@@ -631,6 +773,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     addLine('Cliente / Sposi', formData.client || '-');
     addLine('Tipo Evento', formData.type || '-');
     addLine('Data Evento', formData.date || '-');
+    addLine('Nome Location', formData.nomeLocation || '-');
     addLine('Indirizzo', formData.address || '-');
     addLine('Numero Momenti', formData.numMomenti);
     if (formData.momenti?.length) {
@@ -732,8 +875,37 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     <input type="date" name="date" value={formData.date} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome Location</label>
+                    <input type="text" name="nomeLocation" value={formData.nomeLocation} onChange={handleChange} placeholder="es. Villa Bianca" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div className="relative">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Via, nr civico, CAP, Città</label>
-                    <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="es. Via Roma 1, 53100 Siena" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    <input
+                      type="text"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                      placeholder="es. Via Roma 1, 53100 Siena"
+                      autoComplete="off"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    {showSuggestions && addressSuggestions.length > 0 && (
+                      <ul className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-auto">
+                        {addressSuggestions.map((s, i) => (
+                          <li key={s.place_id || i}>
+                            <button
+                              type="button"
+                              onMouseDown={() => selectAddressSuggestion(s)}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 border-b border-slate-100 last:border-b-0"
+                            >
+                              {formatItalianAddress(s)}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Acconto (€)</label>
@@ -746,10 +918,6 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Ospiti Stimati</label>
                     <input type="number" name="numeroOspiti" min="0" value={formData.numeroOspiti} onChange={handleChange} placeholder="es. 100" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Orario Evento</label>
-                    <input type="text" name="orarioEvento" value={formData.orarioEvento} onChange={handleChange} placeholder="es. 18:00 – 01:00" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Numero Pasti</label>
@@ -771,13 +939,21 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                           <div className="flex items-center justify-between">
                             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Momento {i + 1}</p>
                             <div className="flex items-center gap-2">
-                              <label className="text-xs text-slate-500">Orario:</label>
+                              <label className="text-xs text-slate-500">Dalle:</label>
                               <input
                                 type="text"
-                                value={m.orario || ''}
-                                onChange={e => handleMomentoField(i, 'orario', e.target.value)}
+                                value={m.inizio || ''}
+                                onChange={e => handleMomentoField(i, 'inizio', e.target.value)}
                                 placeholder="es. 17:00"
-                                className="w-24 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500"
+                                className="w-20 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500"
+                              />
+                              <label className="text-xs text-slate-500">Alle:</label>
+                              <input
+                                type="text"
+                                value={m.fine || ''}
+                                onChange={e => handleMomentoField(i, 'fine', e.target.value)}
+                                placeholder="es. 19:00"
+                                className="w-20 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500"
                               />
                             </div>
                           </div>
@@ -1246,6 +1422,15 @@ function QuoteForm({ onCancel, onSave, initialData }) {
             </button>
             <button
               type="button"
+              onClick={handleDownloadPdf}
+              disabled={pdfGenerating}
+              className="w-full mt-3 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-bold shadow-sm transition-colors disabled:opacity-70"
+            >
+              <Printer size={20} />
+              {pdfGenerating ? 'Generazione...' : 'Scarica PDF Preventivo'}
+            </button>
+            <button
+              type="button"
               onClick={handleDownloadInternalReport}
               className="w-full mt-3 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold shadow-sm transition-colors"
             >
@@ -1265,52 +1450,80 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 // ==========================================
 // DOCUMENTO PDF PREVENTIVO (vettoriale)
 // ==========================================
+const PDF_FS = 12; // dimensione unica per tutte le scritte dei PDF (preventivo + contratto)
 const pdfStyles = StyleSheet.create({
-  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'Heiti', color: '#000000', fontSize: 11 },
+  page: { paddingHorizontal: 55, paddingVertical: 55, fontFamily: 'Heiti', color: '#000000', fontSize: PDF_FS },
   logo: { width: 200, height: 133, alignSelf: 'center', marginBottom: 4, objectFit: 'contain' },
   infoBlock: { marginBottom: 40 },
-  infoLine: { fontFamily: 'Heiti', fontSize: 10, marginBottom: 3, color: '#000000' },
+  infoLine: { fontFamily: 'Heiti', fontSize: PDF_FS, marginBottom: 3, color: '#000000' },
   infoLabel: { color: '#000000' },
-  sectionTitle: { fontFamily: 'Heiti', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#000000', marginBottom: 18 },
+  sectionTitle: { fontFamily: 'Heiti', fontSize: PDF_FS, letterSpacing: 2, textTransform: 'uppercase', color: '#000000', marginBottom: 18 },
   serviceRow: { flexDirection: 'row', marginBottom: 12 },
   bullet: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#a8a29e', marginTop: 6, marginRight: 10 },
-  serviceTitle: { fontFamily: 'Heiti', fontSize: 12, color: '#000000' },
-  serviceDesc: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', marginTop: 2 },
+  serviceTitle: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
+  serviceDesc: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', marginTop: 2 },
   divider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 32 },
   ecoBox: { backgroundColor: '#fafaf9', padding: 16 },
   ecoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  ecoLabel: { fontFamily: 'Heiti', fontSize: 9, color: '#000000' },
-  ecoLabelStrong: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', fontWeight: 'bold' },
-  ecoValue: { fontSize: 14, color: '#000000' },
-  ecoValueBig: { fontSize: 16, color: '#000000' },
+  ecoLabel: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
+  ecoLabelStrong: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', fontWeight: 'bold' },
+  ecoValue: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
+  ecoValueBig: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
   ecoDivider: { height: 1, backgroundColor: '#e7e5e4', marginVertical: 10 },
-  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Heiti', fontSize: 8, color: '#6f4526', textAlign: 'center', lineHeight: 1.5 },
+  note: { marginTop: 48, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#f5f5f4', fontFamily: 'Heiti', fontSize: PDF_FS, color: '#6f4526', textAlign: 'center', lineHeight: 1.5 },
   footer: { marginTop: 32, alignItems: 'center' },
   footerLine: { width: 32, height: 1, backgroundColor: '#d6d3d1', marginBottom: 12 },
-  footerBrand: { fontFamily: 'Heiti', fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', color: '#000000' },
+  footerBrand: { fontFamily: 'Heiti', fontSize: PDF_FS, letterSpacing: 3, textTransform: 'uppercase', color: '#000000' },
   ecoSubRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
-  ecoSubLabel: { fontFamily: 'Heiti', fontSize: 9, color: '#000000' },
-  ecoSubValue: { fontFamily: 'Heiti', fontSize: 9, color: '#000000' },
-  docMeta: { fontFamily: 'Heiti', fontSize: 8, color: '#6f4526', textAlign: 'center', marginBottom: 24 },
-  sectionHeader: { fontFamily: 'Heiti', fontSize: 7.5, letterSpacing: 1.5, color: '#6f4526', marginBottom: 10, marginTop: 20, borderBottomWidth: 0.5, borderBottomColor: '#e7e5e4', paddingBottom: 4 },
+  ecoSubLabel: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
+  ecoSubValue: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
+  docMeta: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#6f4526', textAlign: 'center', marginBottom: 24 },
+  sectionHeader: { fontFamily: 'Heiti', fontSize: PDF_FS, letterSpacing: 1.5, color: '#6f4526', marginBottom: 10, marginTop: 20, borderBottomWidth: 0.5, borderBottomColor: '#e7e5e4', paddingBottom: 4 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   infoItem: { width: '50%', marginBottom: 6, paddingRight: 8 },
   infoItemFull: { width: '100%', marginBottom: 6 },
-  fieldLabel: { fontFamily: 'Heiti', fontSize: 7.5, color: '#6f4526', marginBottom: 1 },
-  fieldValue: { fontFamily: 'Heiti', fontSize: 10, color: '#000000' },
+  fieldLabel: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#6f4526', marginBottom: 1 },
+  fieldValue: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000' },
   momentoBlock: { marginBottom: 12, paddingLeft: 10, borderLeftWidth: 1.5, borderLeftColor: '#e7e5e4' },
   momentoRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'flex-start' },
-  momentoBullet: { fontFamily: 'Heiti', fontSize: 10, color: '#6f4526', width: 12 },
+  momentoBullet: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#6f4526', width: 12 },
   momentoContent: { flex: 1 },
-  momentoTitle: { fontFamily: 'Heiti', fontSize: 10, color: '#000000', marginBottom: 2 , fontWeight: '800' },
-  momentoDesc: { fontFamily: 'Heiti', fontSize: 10, color: '#000000', lineHeight: 1.4 },
+  momentoTitle: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', marginBottom: 2 , fontWeight: '800' },
+  momentoDesc: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', lineHeight: 1.4 },
   bulletRow: { flexDirection: 'row', marginBottom: 4 },
-  bulletDot: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', width: 10 },
-  bulletText: { fontFamily: 'Heiti', fontSize: 9, color: '#000000', flex: 1, lineHeight: 1.4 },
+  bulletDot: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', width: 10 },
+  bulletText: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', flex: 1, lineHeight: 1.4 },
   twoColLeft: { flex: 1, marginRight: 14 },
   twoColRight: { flex: 1 },
-  colSubHeader: { fontFamily: 'Heiti', fontSize: 7.5, color: '#000000', letterSpacing: 1, marginBottom: 6 },
+  colSubHeader: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', letterSpacing: 1, marginBottom: 6 },
+  // --- Stili specifici Contratto (in stile IMD) ---
+  contractTitle: { fontFamily: 'Heiti', fontSize: PDF_FS, letterSpacing: 1.5, textTransform: 'uppercase', color: '#000000', textAlign: 'center', marginBottom: 6 },
+  contractParty: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', lineHeight: 1.5, marginBottom: 8 },
+  contractBetween: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#6f4526', textAlign: 'center', marginVertical: 6, letterSpacing: 1 },
+  clauseText: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', lineHeight: 1.5, marginBottom: 5 },
+  signBlock: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 40 },
+  signCol: { width: '45%', alignItems: 'center' },
+  signLabel: { fontFamily: 'Heiti', fontSize: PDF_FS, letterSpacing: 1, color: '#6f4526', marginBottom: 24 },
+  signLine: { width: '100%', borderTopWidth: 0.5, borderTopColor: '#000000', paddingTop: 4 },
+  signName: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', textAlign: 'center' },
 });
+
+// Dati aziendali IMD (uniformi ai preventivi)
+const IMD_INFO = {
+  brand: 'The Italian Music Designer',
+  short: 'IMD',
+  referente: 'Giovanni Gargini',
+  natoA: 'Firenze',
+  dataNascita: '13/10/1986',
+  cf: 'GRGGNN86R13D612V',
+  residenza: 'Firenze, Via Faentina 102',
+  tel: '+39 333 828 3982',
+  email: 'giovannigargini@gmail.com',
+  pec: 'giovannigargini@pec.it',
+  iban: 'IT21W0347501605CC0011861850',
+  ibanIntestatario: 'Giovanni Gargini',
+  sito: 'www.italianmusicdesigner.com',
+};
 
 function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
   const today = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -1350,6 +1563,12 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
             <Text style={pdfStyles.fieldLabel}>Data Evento</Text>
             <Text style={pdfStyles.fieldValue}>{quote.date}</Text>
           </View>
+          {fd.nomeLocation ? (
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Nome Location</Text>
+              <Text style={pdfStyles.fieldValue}>{fd.nomeLocation}</Text>
+            </View>
+          ) : null}
           <View style={pdfStyles.infoItem}>
             <Text style={pdfStyles.fieldLabel}>Location</Text>
             <Text style={pdfStyles.fieldValue}>{quote.location}</Text>
@@ -1360,16 +1579,16 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
               <Text style={pdfStyles.fieldValue}>{String(fd.numeroOspiti)} pax</Text>
             </View>
           ) : null}
-          {fd.orarioEvento ? (
+          {getOrarioComplessivo(fd.momenti) ? (
             <View style={pdfStyles.infoItem}>
               <Text style={pdfStyles.fieldLabel}>Orario Indicativo Evento</Text>
-              <Text style={pdfStyles.fieldValue}>{fd.orarioEvento}</Text>
+              <Text style={pdfStyles.fieldValue}>{getOrarioComplessivo(fd.momenti)}</Text>
             </View>
           ) : null}
         </View>
 
         {/* 2. Proposta Artistica */}
-        <View wrap={false}>
+        <View>
           <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica</Text>
           {(fd.momenti || []).filter(m => m.titolo).length > 0
             ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
@@ -1377,7 +1596,7 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
                   <Text style={pdfStyles.momentoBullet}>•</Text>
                   <View style={pdfStyles.momentoContent}>
                     <Text style={pdfStyles.momentoTitle}>
-                      {m.titolo}{m.orario ? `  \u2014  Orario: ${m.orario}` : ''}
+                      {m.titolo}{(m.inizio || m.fine) ? `  \u2014  Orario: ${[m.inizio, m.fine].filter(Boolean).join(' \u2013 ')}` : ''}
                     </Text>
                     {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
                   </View>
@@ -1388,9 +1607,9 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         </View>
 
         {/* 3. Condizioni Economiche */}
-        <View wrap={false}>
+        <View>
           <Text style={pdfStyles.sectionHeader}>3. Condizioni Economiche</Text>
-          <View style={pdfStyles.ecoBox}>
+          <View style={pdfStyles.ecoBox} wrap={false}>
             <View style={pdfStyles.ecoRow}>
               <Text style={pdfStyles.ecoLabel}>Prezzo Lordo</Text>
               <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + IVA 22%</Text>
@@ -1435,7 +1654,7 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         </View>
 
         {/* 4. Rider */}
-        <View wrap={false}>
+        <View>
           <Text style={pdfStyles.sectionHeader}>4. Rider Tecnico &amp; Logistica</Text>
           {[
             `Attrezzatura audio: ${Number(fd.numImpianti) > 0 ? 'Fornita dalla band' : 'A cura del cliente/service'}`,
@@ -1453,7 +1672,7 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         </View>
 
         {/* 5. Web */}
-        <View wrap={false}>
+        <View>
           <Text style={pdfStyles.sectionHeader}>5. Materiale Multimediale</Text>
           {['Sito Web: www.italianmusicdesigner.com', 'Video: youtube.com/@ItalianMusicDesigner'].map((item, i) => (
             <View key={i} style={pdfStyles.bulletRow}>
@@ -1495,6 +1714,145 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
 }
 
 // ==========================================
+// DOCUMENTO PDF CONTRATTO (in stile IMD)
+// ==========================================
+function ContractPDF({ data, logoPng }) {
+  const c = data;
+  const compenso = Number(c.compensoTotale || 0);
+  const acconto = Number(c.importoAcconto || 0);
+  const saldo = Math.max(0, compenso - acconto);
+  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
+  const audioInclusa = Number(c.numeroImpianti || 0) > 0;
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        {logoPng ? <Image style={pdfStyles.logo} src={logoPng} /> : null}
+        <Text style={pdfStyles.contractTitle}>Scrittura Privata per Prestazione Artistica</Text>
+
+        {/* Parti */}
+        <Text style={pdfStyles.contractBetween}>TRA LE PARTI</Text>
+        <Text style={pdfStyles.contractParty}>
+          <Text style={{ fontWeight: 'bold' }}>{IMD_INFO.brand} ({IMD_INFO.short})</Text>, nella persona del referente artistico {IMD_INFO.referente}, nato a {IMD_INFO.natoA} il {IMD_INFO.dataNascita}, Codice Fiscale {IMD_INFO.cf}, residente in {IMD_INFO.residenza}, tel. {IMD_INFO.tel}, e-mail {IMD_INFO.email} (di seguito «IMD»);
+        </Text>
+        <Text style={pdfStyles.contractBetween}>E</Text>
+        <Text style={pdfStyles.contractParty}>
+          <Text style={{ fontWeight: 'bold' }}>{c.nomeCliente || '—'}</Text>, residente / con sede legale in {c.indirizzoCliente || '—'}, Codice Fiscale {c.cfCliente || '—'}{c.pivaCliente ? ` / P.IVA ${c.pivaCliente}` : ''}{c.pecSdiCliente ? `, PEC/SDI ${c.pecSdiCliente}` : ''} (di seguito «il Cliente»).
+        </Text>
+
+        {/* Premesse */}
+        <Text style={pdfStyles.sectionHeader}>PREMESSO CHE</Text>
+        <Text style={pdfStyles.clauseText}>
+          • Il Cliente intende avvalersi delle prestazioni musicali di IMD per un evento che si terrà presso {c.nomeLocation || 'la location indicata'}, situata in {c.indirizzoLocation || '—'}, il giorno {c.dataEvento || '—'}.
+        </Text>
+        <Text style={pdfStyles.clauseText}>
+          • IMD dichiara di essere libera da impegni e disponibile a prestare la propria opera artistica.
+        </Text>
+        <Text style={pdfStyles.clauseText}>Tutto ciò premesso, le parti convengono e stipulano quanto segue:</Text>
+
+        {/* 1. Oggetto */}
+        <Text style={pdfStyles.sectionHeader}>1. OGGETTO</Text>
+        <Text style={pdfStyles.clauseText}>1.1 IMD si impegna a svolgere la propria esibizione musicale nell&apos;evento sopra indicato.</Text>
+        <Text style={pdfStyles.clauseText}>
+          1.2 La prestazione avrà una durata complessiva di {c.durataOre || '—'} ore, dalle {c.oraInizio || '—'} alle {c.oraFine || '—'}, secondo il seguente programma di massima:
+        </Text>
+        {c.orarioMontaggio ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.orarioMontaggio} — Montaggio e sound check</Text></View>
+        ) : null}
+        {momenti.map((m, i) => (
+          <View key={i} style={pdfStyles.bulletRow}>
+            <Text style={pdfStyles.bulletDot}>•</Text>
+            <Text style={pdfStyles.bulletText}>
+              {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live "${m.titolo}"` : ''}{c.minutiPausa ? ` con pause di max ${c.minutiPausa} minuti` : ''}
+            </Text>
+          </View>
+        ))}
+        {c.oraFine ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.oraFine} — Termine della prestazione</Text></View>
+        ) : null}
+
+        {/* 2. Prestazioni */}
+        <Text style={pdfStyles.sectionHeader}>2. PRESTAZIONI DI IMD</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti è a carico del Cliente.</Text>
+        <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del referente artistico {IMD_INFO.referente}.</Text>
+        <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
+        <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.</Text>
+        <Text style={pdfStyles.clauseText}>
+          2.5 La formazione per l&apos;evento sarà composta da {c.strumentiFormazione || 'strumenti da concordare'} ({c.numeroMusicisti || '—'} musicisti).
+        </Text>
+        <Text style={pdfStyles.clauseText}>
+          2.6 {audioInclusa ? 'IMD fornirà a proprie spese l\u2019attrezzatura audio/luci necessaria.' : 'Il servizio audio/luci sarà fornito da un service esterno a carico del Cliente.'}
+        </Text>
+
+        {/* 3. Luogo e variazioni */}
+        <Text style={pdfStyles.sectionHeader}>3. LUOGO DELL&apos;ADEMPIMENTO E VARIAZIONI</Text>
+        <Text style={pdfStyles.clauseText}>3.1 Eventuali prolungamenti di orario o servizi aggiuntivi rispetto a quanto pattuito comporteranno supplementi di prezzo, comunicati da IMD e pagati dal Cliente.</Text>
+        <Text style={pdfStyles.clauseText}>3.2 Le parti restano vincolate esclusivamente alle prestazioni, ai luoghi, alle date e agli orari indicati nel presente contratto.</Text>
+        <Text style={pdfStyles.clauseText}>3.3 IMD si impegna a raggiungere la location in tempo utile per il montaggio e il sound check.</Text>
+
+        {/* 4. Corrispettivo */}
+        <Text style={pdfStyles.sectionHeader}>4. CORRISPETTIVO E SPESE</Text>
+        <Text style={pdfStyles.clauseText}>4.1 Il compenso totale a carico del Cliente è di € {compenso.toLocaleString('it-IT')} + IVA, così suddiviso:</Text>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Acconto (caparra confirmatoria/penitenziale): € {acconto.toLocaleString('it-IT')} + IVA alla firma del contratto, e comunque entro {c.giorniAcconto || '—'} giorni lavorativi dalla sottoscrizione.</Text></View>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Saldo: € {saldo.toLocaleString('it-IT')} + IVA da corrispondersi entro {c.tempisticaSaldo || 'il giorno dell\u2019evento'}.</Text></View>
+        <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «Consulenza musicale evento {c.dataEvento || ''} - {c.nomeCliente || ''}».</Text>
+        <Text style={pdfStyles.clauseText}>
+          4.3 Le spese di viaggio sono incluse nel totale{c.inclusioni ? `, comprese ${c.inclusioni}` : ''}.{c.esclusioni ? ` Escluse eventuali spese per ${c.esclusioni}.` : ''}
+        </Text>
+
+        {/* 5. SIAE */}
+        <Text style={pdfStyles.sectionHeader}>5. DIRITTI S.I.A.E.</Text>
+        <Text style={pdfStyles.clauseText}>5.1 I diritti d&apos;autore (SIAE) e i relativi costi di licenza sono totalmente a carico del Cliente, che dovrà provvedere al pagamento e all&apos;ottenimento del permesso entro il giorno precedente l&apos;evento, esibendo la ricevuta a IMD prima dell&apos;inizio dell&apos;esibizione.</Text>
+
+        {/* 6. Recesso */}
+        <Text style={pdfStyles.sectionHeader}>6. RECESSO E PENALI</Text>
+        <Text style={pdfStyles.clauseText}>6.1 L&apos;eventuale revoca dell&apos;ingaggio da parte del Cliente deve avvenire per iscritto tramite raccomandata A/R o PEC all&apos;indirizzo {IMD_INFO.pec}. Se il recesso avviene entro 7 giorni dalla firma e prima del versamento dell&apos;acconto, IMD è liberata da ogni obbligo.</Text>
+        <Text style={pdfStyles.clauseText}>6.2 Se il Cliente annulla il contratto entro 3 mesi dall&apos;evento, gli acconti versati saranno trattenuti da IMD a titolo di penale. Il Cliente potrebbe inoltre essere tenuto a corrispondere una somma fino a concorrenza del doppio della caparra.</Text>
+        <Text style={pdfStyles.clauseText}>6.3 Se il Cliente annulla entro 1 mese dall&apos;evento, sarà tenuto a versare una somma pari alla metà del compenso totale pattuito (o l&apos;intero importo se l&apos;annullamento avviene entro 15 giorni dall&apos;evento).</Text>
+        <Text style={pdfStyles.clauseText}>6.4 Se IMD annulla entro 30 giorni dall&apos;evento, restituirà al Cliente il doppio della caparra versata.</Text>
+        <Text style={pdfStyles.clauseText}>6.5 Se IMD annulla oltre 30 giorni prima dell&apos;evento, dovrà proporre un sostituto qualificato senza costi aggiuntivi per il Cliente. Qualora il Cliente rifiuti il sostituto, IMD restituirà il doppio della caparra.</Text>
+        <Text style={pdfStyles.clauseText}>6.6 IMD non è responsabile per inadempimenti o ritardi dovuti a caso fortuito o forza maggiore (es. calamità naturali, gravi malattie o infortuni certificati, incidenti stradali documentati durante il tragitto).</Text>
+
+        {/* 7. Privacy */}
+        <Text style={pdfStyles.sectionHeader}>7. PRIVACY E DIRITTI D&apos;IMMAGINE</Text>
+        <Text style={pdfStyles.clauseText}>7.1 Il Cliente autorizza il trattamento dei propri dati personali ai fini dell&apos;esecuzione del presente contratto ai sensi del D.lgs. 196/2003 e del GDPR (Reg. UE 2016/679).</Text>
+        <Text style={pdfStyles.clauseText}>7.2 Il Cliente autorizza la ripresa foto/video e l&apos;eventuale pubblicazione delle immagini dell&apos;evento per uso divulgativo e promozionale di IMD (social media, sito web).</Text>
+        <Text style={pdfStyles.clauseText}>7.3 L&apos;uso di tali immagini è vietato in contesti che possano ledere la dignità o il decoro delle parti.</Text>
+
+        {/* 8. Richieste tecniche */}
+        <Text style={pdfStyles.sectionHeader}>8. RICHIESTE TECNICHE E LOGISTICHE</Text>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Allacciamento elettrico idoneo e sicuro in prossimità della postazione.</Text></View>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Acqua e bicchieri per {c.numeroPasti || '—'} musicisti.</Text></View>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Spazio adibito a camerino/spogliatoio per i musicisti.</Text></View>
+
+        {/* Dichiarazioni finali e firme */}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>DICHIARAZIONI FINALI</Text>
+          <Text style={pdfStyles.clauseText}>Le parti dichiarano che i dati anagrafici e fiscali indicati nel presente contratto sono veritieri e si impegnano al rispetto di ogni clausola qui sottoscritta.</Text>
+          <Text style={pdfStyles.clauseText}>Luogo: {c.luogoFirma || 'Firenze'}, Data: {c.dataFirma || ''}</Text>
+
+          <View style={pdfStyles.signBlock}>
+            <View style={pdfStyles.signCol}>
+              <Text style={pdfStyles.signLabel}>PER IMD</Text>
+              <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{IMD_INFO.referente}</Text></View>
+            </View>
+            <View style={pdfStyles.signCol}>
+              <Text style={pdfStyles.signLabel}>IL CLIENTE</Text>
+              <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{c.nomeCliente || ''}</Text></View>
+            </View>
+          </View>
+        </View>
+
+        <View style={pdfStyles.footer}>
+          <View style={pdfStyles.footerLine} />
+          <Text style={pdfStyles.footerBrand}>The Italian Music Designer</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+// ==========================================
 // COMPONENTE STAMPA / PDF
 // ==========================================
 function PrintView({ quote, onBack }) {
@@ -1507,27 +1865,6 @@ function PrintView({ quote, onBack }) {
   // Prezzi mostrati dall'app (nessun ricalcolo nel PDF)
   const prezzoLordo = roundPrice(quote.prezzoLordo ?? (quote.total / 0.6));
   const scontoperTe = roundPrice(quote.scontoPerTe ?? (prezzoLordo * Number(fd.sconto || 0.65)));
-
-  // Converti SVG logo in PNG data URL (una sola volta)
-  const svgToPngDataUrl = (svgUrl) => {
-    return new Promise((resolve) => {
-      const img = new window.Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        // Usa le proporzioni reali del logo (1774x1183)
-        const width = 1774;
-        const height = 1183;
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => resolve('');
-      img.src = svgUrl;
-    });
-  };
 
   useEffect(() => {
     let active = true;
@@ -1660,6 +1997,226 @@ function Login() {
             </button>
           </form>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// COMPONENTE CONTRATTO (precompilato dal preventivo)
+// ==========================================
+function ContractForm({ quote, onBack, onSave }) {
+  const fd = quote.formData || {};
+  const momenti = fd.momenti || [];
+  const saved = fd.contractData || {};
+
+  const oraInizio = momenti.find(m => m?.inizio)?.inizio || '';
+  const oraFine = [...momenti].reverse().find(m => m?.fine)?.fine || '';
+
+  const [data, setData] = useState({
+    // Cliente (dati fiscali da compilare)
+    nomeCliente: quote.client || '',
+    indirizzoCliente: '',
+    cfCliente: '',
+    pivaCliente: '',
+    pecSdiCliente: '',
+    // Location (precompilata)
+    nomeLocation: fd.nomeLocation || '',
+    indirizzoLocation: fd.address || quote.location || '',
+    dataEvento: quote.date || '',
+    // Orari (derivati dai momenti)
+    oraInizio,
+    oraFine,
+    orarioMontaggio: subtractOneHour(oraInizio),
+    durataOre: computeDurataOre(oraInizio, oraFine),
+    minutiPausa: 30,
+    // Formazione (precompilata dal preventivo)
+    strumentiFormazione: '',
+    numeroMusicisti: fd.numMusicisti || '',
+    numeroImpianti: fd.numImpianti ?? 0,
+    numeroPasti: fd.numPasti || '',
+    // Economico (default: prezzo lordo, aggiustabile col concordato)
+    compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
+    importoAcconto: fd.acconto || 0,
+    giorniAcconto: 5,
+    tempisticaSaldo: "il giorno dell'evento",
+    inclusioni: '',
+    esclusioni: '',
+    // Sovrascrivi con i dati del contratto gia' salvati (se presenti)
+    ...saved,
+  });
+
+  const handle = (e) => {
+    const { name, value, type } = e.target;
+    setData(prev => ({ ...prev, [name]: type === 'number' ? (value === '' ? '' : Number(value)) : value }));
+  };
+
+  const importoSaldo = Math.max(0, Number(data.compensoTotale || 0) - Number(data.importoAcconto || 0));
+
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
+  const logoPngRef = useRef('');
+
+  const handleSaveContract = async () => {
+    setSaving(true);
+    setSavedOk(false);
+    try {
+      await onSave(quote.id, data);
+      setSavedOk(true);
+      setTimeout(() => setSavedOk(false), 2500);
+    } catch (err) {
+      console.error('Errore salvataggio contratto:', err);
+      alert('Errore nel salvataggio del contratto: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownloadContract = async () => {
+    setPdfGenerating(true);
+    try {
+      if (!logoPngRef.current) logoPngRef.current = await svgToPngDataUrl(logoIMD);
+      const contractData = {
+        ...data,
+        momenti,
+        luogoFirma: 'Firenze',
+        dataFirma: new Date().toLocaleDateString('it-IT'),
+      };
+      const doc = <ContractPDF data={contractData} logoPng={logoPngRef.current} />;
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Contratto_${quote.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Errore generazione contratto:', err);
+      alert('Errore nella generazione del contratto: ' + err.message);
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
+  const field = (label, name, opts = {}) => (
+    <div className={opts.full ? 'md:col-span-2' : ''}>
+      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        type={opts.type || 'text'}
+        name={name}
+        value={data[name]}
+        onChange={handle}
+        placeholder={opts.placeholder || ''}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+      />
+    </div>
+  );
+
+  const Section = ({ title, icon: Icon, children }) => (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-slate-100 px-6 py-4 border-b border-slate-200 flex items-center gap-2">
+        <Icon size={16} className="text-slate-500" />
+        <h3 className="text-base font-semibold text-slate-700">{title}</h3>
+      </div>
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
+    </div>
+  );
+
+  return (
+    <div className="animate-in fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <FileText size={22} className="text-purple-600" /> Contratto — {quote.client}
+          </h2>
+          <p className="text-slate-500 text-sm">Precompilato dal preventivo {quote.id}. Completa i dati mancanti.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveContract}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
+          >
+            <Save size={18} /> {saving ? 'Salvataggio...' : savedOk ? 'Salvato ✓' : 'Salva'}
+          </button>
+          <button
+            onClick={handleDownloadContract}
+            disabled={pdfGenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
+          >
+            <FileText size={18} /> {pdfGenerating ? 'Generazione...' : 'Scarica Contratto PDF'}
+          </button>
+          <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg transition-colors font-medium shadow-sm">
+            <ArrowLeft size={18} /> Chiudi
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-6 max-w-4xl">
+        <Section title="Dati Cliente" icon={User}>
+          {field('Nome / Ragione Sociale', 'nomeCliente', { full: true })}
+          {field('Indirizzo / Sede legale', 'indirizzoCliente', { full: true, placeholder: 'Via, civico, CAP, Città' })}
+          {field('Codice Fiscale', 'cfCliente')}
+          {field('P.IVA', 'pivaCliente')}
+          {field('PEC / Codice SDI', 'pecSdiCliente', { full: true })}
+        </Section>
+
+        <Section title="Evento e Location" icon={MapPin}>
+          {field('Nome Location', 'nomeLocation')}
+          {field('Data Evento', 'dataEvento')}
+          {field('Indirizzo Location', 'indirizzoLocation', { full: true })}
+        </Section>
+
+        <Section title="Orari e Programma" icon={Clock}>
+          {field('Ora Inizio', 'oraInizio')}
+          {field('Ora Fine', 'oraFine')}
+          {field('Durata (ore)', 'durataOre')}
+          {field('Orario Montaggio', 'orarioMontaggio')}
+          {field('Minuti Pausa (max)', 'minutiPausa', { type: 'number' })}
+          <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Programma live (dai momenti)</p>
+            {momenti.filter(m => m.titolo || m.inizio).length > 0 ? (
+              <ul className="text-sm text-slate-700 space-y-1">
+                {momenti.filter(m => m.titolo || m.inizio).map((m, i) => (
+                  <li key={i}>
+                    <span className="font-medium">{[m.inizio, m.fine].filter(Boolean).join(' – ')}</span>
+                    {m.titolo ? ` — ${m.titolo}` : ''}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-400">Nessun momento con orario nel preventivo.</p>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Formazione" icon={Music}>
+          {field('Strumenti Formazione', 'strumentiFormazione', { full: true, placeholder: 'es. tromba, voce, contrabbasso...' })}
+          {field('Numero Musicisti', 'numeroMusicisti', { type: 'number' })}
+          {field('Numero Impianti Audio', 'numeroImpianti', { type: 'number' })}
+          {field('Numero Pasti', 'numeroPasti', { type: 'number' })}
+        </Section>
+
+        <Section title="Corrispettivo e Spese" icon={Calculator}>
+          {field('Compenso Totale (€)', 'compensoTotale', { type: 'number' })}
+          {field('Acconto (€)', 'importoAcconto', { type: 'number' })}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Saldo (€)</label>
+            <input type="text" value={importoSaldo.toLocaleString('it-IT')} readOnly className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-slate-600" />
+          </div>
+          {field('Giorni per Acconto', 'giorniAcconto', { type: 'number' })}
+          {field('Tempistica Saldo', 'tempisticaSaldo', { full: true })}
+          {field('Inclusioni spese', 'inclusioni', { full: true, placeholder: 'es. viaggio, vitto...' })}
+          {field('Esclusioni spese', 'esclusioni', { full: true, placeholder: 'es. taxi boat, rimborsi specifici...' })}
+        </Section>
+
+        <p className="text-xs text-slate-500">
+          Luogo di firma: <strong>Firenze</strong>. Data di firma: data di generazione del PDF.
+        </p>
+        <p className="text-xs text-slate-500">
+          Il prezzo di default è il <strong>prezzo lordo</strong> del preventivo: modificalo con l'importo concordato se diverso.
+        </p>
       </div>
     </div>
   );
@@ -1803,150 +2360,30 @@ export default function App() {
     setCurrentView('print');
   };
 
-  const handleDownloadInternalReport = (quote) => {
-    const fd = quote.formData;
-    if (!fd) {
-      alert('Dati del form non disponibili per questo preventivo.');
+  const handleCreateContract = (quote) => {
+    if (!quote.formData) {
+      alert('Dati del preventivo non disponibili per questo contratto.');
       return;
     }
+    setSelectedQuote(quote);
+    setCurrentView('contract');
+  };
 
-    const costiMusicisti = Number(fd.numMusicisti || 0) * Number(fd.cachetMusicista || 0);
-    const costoCerimonia = Number(fd.costoCerimonia || 0);
-    const costoExtra = Number(fd.costoExtra || 0);
-    const costiImpianti = Number(fd.numImpianti || 0) * Number(fd.costoImpianto || 0);
-    const costoDj = Number(fd.costoDj || 0);
-    const costoBraniRichiesta = fd.usaBraniRichiesta ? Number(fd.costoBraniRichiesta || 0) : 0;
-    const costiCoordinator = fd.usaCoordinator ? Number(fd.costoCoordinator || 0) : 0;
-
-    const distanzaEffettiva = fd.andataRitorno ? Number(fd.distanzaKm || 0) * 2 : Number(fd.distanzaKm || 0);
-    const litriNecessari = Number(fd.consumoMedio || 0) > 0 ? distanzaEffettiva / Number(fd.consumoMedio) : 0;
-    const costoCarburante = Math.round(litriNecessari * Number(fd.prezzoBenzina || 0) * Number(fd.numMacchine || 0));
-    const pedaggioStimato = fd.inclPedaggio
-      ? (fd.pedaggioAutoCalc
-          ? Math.round(distanzaEffettiva * 0.08 * Number(fd.numMacchine || 0))
-          : Number(fd.pedaggioManuale || 0))
-      : 0;
-    const costoTrasferta = costoCarburante + pedaggioStimato;
-    const costoPernottamento = fd.usaPernottamento
-      ? Number(fd.numNotti || 0) * Number(fd.prezzoPerNotte || 0) * Number(fd.numMusicisti || 0)
-      : 0;
-
-    const totaleCostiBase = costiMusicisti + costoCerimonia + costoExtra + costiImpianti + costoDj + costoBraniRichiesta + costiCoordinator;
-    const prezzoServiziMaggiorato = fd.usaMaggAgenzia
-      ? totaleCostiBase / (1 - Number(fd.percMaggAgenzia || 0) / 100)
-      : totaleCostiBase;
-    const maggiorazioneAgenziaVal = prezzoServiziMaggiorato - totaleCostiBase;
-    let prezzoFinaleRaw = prezzoServiziMaggiorato + costoTrasferta + costoPernottamento;
-    const preFTM = prezzoFinaleRaw;
-    if (fd.usaCommFTM) prezzoFinaleRaw = prezzoFinaleRaw / (1 - Number(fd.percCommFTM || 0) / 100);
-    const commissioneFTMVal = prezzoFinaleRaw - preFTM;
-    const preWP = prezzoFinaleRaw;
-    if (fd.usaCommWP) prezzoFinaleRaw = prezzoFinaleRaw / (1 - Number(fd.percCommWP || 0) / 100);
-    const commissioneWPVal = prezzoFinaleRaw - preWP;
-    const prezzoFinale = roundPrice(prezzoFinaleRaw);
-    const prezzoLordo = roundPrice(prezzoFinale / 0.6);
-    const scontoPerTe = roundPrice(prezzoLordo * Number(fd.sconto || 0.65));
-    const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
-
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 12;
-    const contentWidth = pageWidth - margin * 2;
-    let y = 14;
-
-    const ensureSpace = (needed = 7) => {
-      if (y + needed > pageHeight - 12) {
-        pdf.addPage();
-        y = 14;
-      }
-    };
-
-    const addTitle = (text) => {
-      ensureSpace(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(14);
-      pdf.text(text, margin, y);
-      y += 8;
-    };
-
-    const addSection = (text) => {
-      ensureSpace(8);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.text(text, margin, y);
-      y += 6;
-    };
-
-    const addLine = (label, value) => {
-      const text = `${label}: ${value ?? '-'}`;
-      const wrapped = pdf.splitTextToSize(text, contentWidth);
-      ensureSpace(5 + wrapped.length * 4);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.text(wrapped, margin, y);
-      y += wrapped.length * 4 + 1;
-    };
-
-    const euro = (value) =>
-      `EUR ${Number(value || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-    addTitle('REPORT INTERNO PREVENTIVO');
-    addLine('ID Report', quote.id || '-');
-    addLine('Generato il', new Date().toLocaleString('it-IT'));
-
-    y += 2;
-    addSection('Dettagli Generali');
-    addLine('Cliente / Sposi', fd.client || quote.client || '-');
-    addLine('Tipo Evento', fd.type || quote.type || '-');
-    addLine('Data Evento', fd.date || quote.date || '-');
-    addLine('Indirizzo', fd.address || quote.location || '-');
-    addLine('Numero Momenti', fd.numMomenti);
-    if (fd.momenti?.length) {
-      fd.momenti.forEach((m, i) => {
-        addLine(`  Momento ${i + 1}`, m.titolo || '-');
-        if (m.descrizione) addLine('', m.descrizione);
-      });
+  // Salva i dati del contratto dentro form_data.contractData del preventivo
+  const handleSaveContract = async (quoteId, contractData) => {
+    const quote = quotes.find(q => q.id === quoteId);
+    if (!quote) return;
+    const mergedFormData = { ...(quote.formData || {}), contractData };
+    if (import.meta.env.DEV) {
+      const updated = quotes.map(q => q.id === quoteId ? { ...q, formData: mergedFormData } : q);
+      setQuotes(updated); devSave(updated);
+      setSelectedQuote(prev => prev && prev.id === quoteId ? { ...prev, formData: mergedFormData } : prev);
+      return;
     }
-    y += 2;
-    addSection('Servizio Musicale e Staffing');
-    addLine('Numero Musicisti', fd.numMusicisti);
-    addLine('Numero Musicisti', fd.numMusicisti);
-    addLine('Costo Cerimonia', euro(fd.costoCerimonia));
-    addLine('Costo Extra', euro(fd.costoExtra));
-    addLine('Numero Impianti Audio', fd.numImpianti);
-    addLine('Costo DJ', euro(fd.costoDj));
-    addLine('Brani su Richiesta', fd.usaBraniRichiesta ? `SI (${euro(fd.costoBraniRichiesta)})` : 'NO');
-    addLine('Event Coordinator', fd.usaCoordinator ? `SI (${euro(fd.costoCoordinator)})` : 'NO');
-
-    y += 2;
-    addSection('Trasferta e Pernottamento');
-    addLine('Distanza', `${fd.distanzaKm || 0} km`);
-    addLine('Andata/Ritorno', fd.andataRitorno ? 'SI' : 'NO');
-    addLine('Numero Macchine', fd.numMacchine);
-    addLine('Prezzo Benzina', `${euro(fd.prezzoBenzina)} / L`);
-    addLine('Consumo Medio', `${fd.consumoMedio || 0} km/L`);
-    addLine('Pedaggio', fd.inclPedaggio ? (fd.pedaggioAutoCalc ? `Stimato (${euro(pedaggioStimato)})` : `Manuale (${euro(fd.pedaggioManuale)})`) : 'Non incluso');
-    addLine('Costo Carburante', euro(costoCarburante));
-    addLine('Costo Trasferta Totale', euro(costoTrasferta));
-    addLine('Pernottamento', fd.usaPernottamento ? `SI (${fd.numNotti} notti x ${euro(fd.prezzoPerNotte)})` : 'NO');
-    addLine('Costo Pernottamento Totale', euro(costoPernottamento));
-
-    y += 2;
-    addSection('Commissioni e Sconti');
-    addLine('Maggiorazione Agenzia', fd.usaMaggAgenzia ? `${fd.percMaggAgenzia}% (+${euro(Math.round(maggiorazioneAgenziaVal))})` : 'NO');
-    addLine('Commissione Wedding Planner', fd.usaCommWP ? `${fd.percCommWP}% (+${euro(Math.round(commissioneWPVal))})` : 'NO');
-    addLine('Commissione Fix The Music', fd.usaCommFTM ? `${fd.percCommFTM}% (+${euro(Math.round(commissioneFTMVal))})` : 'NO');
-
-    y += 2;
-    addSection('Riepilogo Economico');
-    addLine('Totale Costi Base', euro(totaleCostiBase));
-    addLine('① Prezzo Finale Cliente', `${euro(Math.round(prezzoFinale))} + IVA 22%`);
-    addLine('② Prezzo Lordo (÷0.6)', `${euro(Math.round(prezzoLordo))} + IVA 22%`);
-    addLine(`③ Sconto per Te (×${formatMultiplier(fd.sconto || 0.65)})`, `${euro(scontoPerTe)} + IVA 22%`);
-    addLine('Margine Agenzia Stimato', euro(Math.round(margineAgenzia)));
-
-    pdf.save(`Report_Interno_${quote.id || 'PREVENTIVO'}.pdf`);
+    const { error } = await supabase.from('quotes').update({ form_data: mergedFormData }).eq('id', quoteId);
+    if (error) throw error;
+    setQuotes(quotes.map(q => q.id === quoteId ? { ...q, formData: mergedFormData } : q));
+    setSelectedQuote(prev => prev && prev.id === quoteId ? { ...prev, formData: mergedFormData } : prev);
   };
 
   // Schermata di caricamento iniziale / login
@@ -1987,7 +2424,7 @@ export default function App() {
             onEdit={handleEdit}
             onCreateNew={() => setCurrentView('create')}
             onPrint={handlePrint}
-            onDownloadInternalReport={handleDownloadInternalReport}
+            onCreateContract={handleCreateContract}
           />
         ) : currentView === 'print' && selectedQuote ? (
           <PrintView 
@@ -1996,6 +2433,15 @@ export default function App() {
               setCurrentView('dashboard');
               setSelectedQuote(null);
             }} 
+          />
+        ) : currentView === 'contract' && selectedQuote?.formData ? (
+          <ContractForm
+            quote={selectedQuote}
+            onSave={handleSaveContract}
+            onBack={() => {
+              setCurrentView('dashboard');
+              setSelectedQuote(null);
+            }}
           />
         ) : currentView === 'edit' && selectedQuote?.formData ? (
           <QuoteForm 
