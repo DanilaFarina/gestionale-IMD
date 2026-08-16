@@ -152,7 +152,8 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
             <p className="text-slate-500 mt-0.5 text-sm">Gestisci le tue richieste, calcola i cachet e chiudi le date.</p>
           </div>
         </div>
-        <button 
+        <button
+          type="button"
           onClick={onCreateNew}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
         >
@@ -213,6 +214,7 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
             {['Tutti', 'In attesa', 'Approvato', 'Archiviato'].map(status => (
               <button
                 key={status}
+                type="button"
                 onClick={() => setStatusFilter(status)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   statusFilter === status 
@@ -247,7 +249,12 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                         <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location} ({quote.type})</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-900">€{quote.total.toLocaleString('it-IT')}</td>
+                    <td className="px-6 py-4 font-medium text-slate-900">
+                      €{(quote.formData?.contractData?.compensoTotale ?? quote.prezzoLordo ?? quote.total).toLocaleString('it-IT')}
+                      {quote.formData?.contractData?.compensoTotale && quote.formData.contractData.compensoTotale !== (quote.prezzoLordo ?? quote.total) && (
+                        <span className="text-xs text-slate-400 ml-2">(contratto)</span>
+                      )}
+                    </td>
                     <td className="px-3 py-4 text-center">
                       <span title={quote.status} className="inline-flex items-center justify-center">
                         {quote.status === 'Approvato' && <CheckCircle size={20} className="text-green-600" />}
@@ -257,7 +264,8 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
+                        <button
+                          type="button"
                           onClick={() => onPrint(quote)}
                           title="Genera PDF Preventivo"
                           className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
@@ -266,6 +274,7 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                         </button>
                         {quote.status === 'Approvato' && (
                           <button
+                            type="button"
                             onClick={() => onCreateContract(quote)}
                             title="Crea Contratto"
                             className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
@@ -274,7 +283,8 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                           </button>
                         )}
                         {quote.status === 'In attesa' && (
-                          <button 
+                          <button
+                            type="button"
                             onClick={() => onApprove(quote.id)}
                             title="Segna come Approvato"
                             className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
@@ -282,7 +292,8 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                             <Check size={18} />
                           </button>
                         )}
-                        <button 
+                        <button
+                          type="button"
                           onClick={() => onEdit(quote.id)}
                           title="Modifica Preventivo"
                           className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
@@ -290,7 +301,8 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                           <Edit size={18} />
                         </button>
                         {quote.status !== 'Archiviato' && (
-                          <button 
+                          <button
+                            type="button"
                             onClick={() => onArchive(quote.id)}
                             title="Archivia / Cestina"
                             className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -311,7 +323,8 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                       </div>
                       <h3 className="text-lg font-medium text-slate-900">Nessun preventivo</h3>
                       <p className="text-slate-500 mt-1 max-w-sm">La tua tabella è vuota. Inizia a creare un nuovo preventivo per tracciare i tuoi eventi e incassi.</p>
-                      <button 
+                      <button
+                        type="button"
                         onClick={onCreateNew}
                         className="mt-6 text-blue-600 font-medium hover:text-blue-700 hover:underline"
                       >
@@ -411,8 +424,9 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     usaBraniRichiesta: false,
     costoBraniRichiesta: 50,
     usaCoordinator: true,
-    costoCoordinator: 100,
+    costoCoordinator: 50,
     // Trasferta
+    usaTrasferta: true,
     distanzaKm: 0,
     prezzoBenzina: 1.95,
     consumoMedio: 14,
@@ -439,6 +453,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 
   const [distanzaLoading, setDistanzaLoading] = useState(false);
   const [distanzaError, setDistanzaError] = useState('');
+  const [manualDistanceOverride, setManualDistanceOverride] = useState(Boolean(initialData && Number(initialData.distanzaKm) > 0));
   const [prezzoAutoFetched, setPrezzoAutoFetched] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -448,10 +463,26 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    const nextValue = type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value);
+
+    if (name === 'distanzaKm') {
+      setManualDistanceOverride(true);
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
+      [name]: nextValue
     }));
+  };
+
+  const resetDistanzaAutomatica = () => {
+    setManualDistanceOverride(false);
+    setDistanzaError('');
+    if (formData.address) {
+      calcolaDistanza(formData.address);
+    } else {
+      setFormData(prev => ({ ...prev, distanzaKm: 0 }));
+    }
   };
 
   const handleMomentiCount = (delta) => {
@@ -505,6 +536,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   // Calcolo distanza automatico da Firenze
   const calcolaDistanza = useCallback(async (destinazione) => {
     if (!destinazione || destinazione.trim().length < 3) {
+      setManualDistanceOverride(false);
       setFormData(prev => ({ ...prev, distanzaKm: 0 }));
       setDistanzaError('');
       return;
@@ -527,6 +559,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       const routeData = await routeRes.json();
       if (routeData.routes?.length > 0) {
         const km = Math.round(routeData.routes[0].distance / 1000);
+        setManualDistanceOverride(false);
         setFormData(prev => ({ ...prev, distanzaKm: km }));
       } else {
         setDistanzaError('Percorso non trovato');
@@ -541,6 +574,16 @@ function QuoteForm({ onCancel, onSave, initialData }) {
 
   // Debounce: ricalcola quando cambia la location
   useEffect(() => {
+    if (!formData.usaTrasferta) {
+      setDistanzaError('');
+      return;
+    }
+
+    if (manualDistanceOverride && Number(formData.distanzaKm) > 0) {
+      setDistanzaError('');
+      return;
+    }
+
     const timer = setTimeout(() => {
       if (formData.address) {
         calcolaDistanza(formData.address);
@@ -550,7 +593,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       }
     }, 1200);
     return () => clearTimeout(timer);
-  }, [formData.address, calcolaDistanza]);
+  }, [formData.address, formData.usaTrasferta, formData.distanzaKm, manualDistanceOverride, calcolaDistanza]);
 
   // Autocompletamento indirizzo (Nominatim) mentre l'utente digita
   useEffect(() => {
@@ -599,16 +642,18 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     // Trasferta
     const distanzaEffettiva = formData.andataRitorno ? n(formData.distanzaKm) * 2 : n(formData.distanzaKm);
     const litriNecessari = n(formData.consumoMedio) > 0 ? distanzaEffettiva / n(formData.consumoMedio) : 0;
-    const costoCarburante = Math.round(litriNecessari * n(formData.prezzoBenzina) * n(formData.numMacchine));
+    const costoCarburante = formData.usaTrasferta
+      ? Math.round(litriNecessari * n(formData.prezzoBenzina) * n(formData.numMacchine))
+      : 0;
 
     // Pedaggio autostradale (~0.08 €/km media autostrade italiane)
-    const pedaggioStimato = formData.inclPedaggio
+    const pedaggioStimato = formData.usaTrasferta && formData.inclPedaggio
       ? (formData.pedaggioAutoCalc
           ? Math.round(distanzaEffettiva * 0.08 * n(formData.numMacchine))
           : n(formData.pedaggioManuale))
       : 0;
 
-    const costoTrasferta = costoCarburante + pedaggioStimato;
+    const costoTrasferta = formData.usaTrasferta ? costoCarburante + pedaggioStimato : 0;
 
     // Pernottamento
     const costoPernottamento = formData.usaPernottamento
@@ -828,7 +873,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       
       {/* Header */}
       <div className="flex items-center gap-4">
-        <button 
+        <button
+          type="button"
           onClick={onCancel}
           className="p-2 hover:bg-slate-200 rounded-full transition-colors"
         >
@@ -844,7 +890,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
         
         {/* FORM INSERIMENTO PARAMETRI (Sinistra - 2 colonne) */}
         <div className="lg:col-span-2 space-y-6">
-          <form id="quote-form" onSubmit={handleSubmit} className="space-y-6">
+          <form id="quote-form" onSubmit={handleSubmit} onKeyDown={e => e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.preventDefault()} className="space-y-6">
 
             {/* ── PARTE 1: Informazioni Evento ── solo descrittive, non influenzano il prezzo */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1071,97 +1117,119 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                     <Car size={14} className="text-blue-400"/> Trasferta
                   </h4>
 
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-blue-800">
-                        Distanza da Firenze → {formData.address || '...'}
-                      </span>
-                      {distanzaLoading && (
-                        <span className="text-xs text-blue-600 animate-pulse">Calcolo in corso...</span>
-                      )}
-                    </div>
-                    {distanzaError ? (
-                      <p className="text-sm text-red-600">{distanzaError}</p>
-                    ) : (
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-blue-900">{formData.distanzaKm} km</span>
-                        <span className="text-xs text-blue-600">
-                          ({formData.andataRitorno ? `${formData.distanzaKm * 2} km A/R` : 'solo andata'})
-                        </span>
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2 cursor-pointer mt-2">
-                      <input type="checkbox" name="andataRitorno" checked={formData.andataRitorno} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                      <span className="text-xs font-medium text-blue-700">Andata e Ritorno</span>
-                    </label>
-                    <p className="text-xs text-blue-500 mt-2">Distanza calcolata automaticamente via OpenStreetMap. Puoi sovrascriverla sotto.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Distanza (km) — override</label>
-                      <input type="number" name="distanzaKm" min="0" value={formData.distanzaKm} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Num. Macchine</label>
-                      <input type="number" name="numMacchine" min="1" value={formData.numMacchine} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Prezzo Benzina (€/L)</label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                        <input type="number" name="prezzoBenzina" min="0" step="0.01" value={formData.prezzoBenzina} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {prezzoAutoFetched ? '✓ Aggiornato automaticamente (MIMIT)' : 'Prezzo medio di default — aggiorna manualmente se necessario'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Consumo Medio (km/L)</label>
-                      <input type="number" name="consumoMedio" min="1" step="0.5" value={formData.consumoMedio} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 bg-amber-50 p-4 rounded-xl border border-amber-100">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
                     <label className="flex items-center gap-2 cursor-pointer mb-3">
-                      <input type="checkbox" name="inclPedaggio" checked={formData.inclPedaggio} onChange={handleChange} className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500" />
-                      <span className="text-sm font-medium text-amber-800">Includi Pedaggio Autostradale</span>
+                      <input type="checkbox" name="usaTrasferta" checked={formData.usaTrasferta} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                      <span className="text-sm font-medium text-slate-700">Includi spese di trasferta / macchina</span>
                     </label>
-                    {formData.inclPedaggio && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="pedaggioAutoCalc" checked={formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: true }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
-                            <span className="text-sm text-amber-800">Stima automatica (~0.08 €/km)</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="pedaggioAutoCalc" checked={!formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: false }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
-                            <span className="text-sm text-amber-800">Inserisci manualmente</span>
-                          </label>
+
+                    {formData.usaTrasferta && (
+                      <>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-blue-800">
+                            Distanza da Firenze → {formData.address || '...'}
+                          </span>
+                          {distanzaLoading && (
+                            <span className="text-xs text-blue-600 animate-pulse">Calcolo in corso...</span>
+                          )}
                         </div>
-                        {!formData.pedaggioAutoCalc && (
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Pedaggio Totale (€)</label>
-                            <div className="relative">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
-                              <input type="number" name="pedaggioManuale" min="0" step="0.5" value={formData.pedaggioManuale} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">Verifica su autostrade.it o ViaMichelin per il costo esatto</p>
+                        {distanzaError ? (
+                          <p className="text-sm text-red-600">{distanzaError}</p>
+                        ) : (
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-bold text-blue-900">{formData.distanzaKm} km</span>
+                            <span className="text-xs text-blue-600">
+                              ({formData.andataRitorno ? `${formData.distanzaKm * 2} km A/R` : 'solo andata'})
+                            </span>
                           </div>
                         )}
-                        {calc.pedaggioStimato > 0 && (
-                          <div className="flex justify-between items-center text-sm text-amber-800 bg-amber-100/50 p-2 rounded-lg">
-                            <span>
-                              {formData.pedaggioAutoCalc
-                                ? `${calc.distanzaEffettiva} km × 0.08 €/km × ${formData.numMacchine} macch.`
-                                : 'Importo manuale'}
-                            </span>
-                            <span className="font-semibold">€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
+                        {manualDistanceOverride && Number(formData.distanzaKm) > 0 && (
+                          <button
+                            type="button"
+                            onClick={resetDistanzaAutomatica}
+                            className="mt-2 text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                          >
+                            Ricalcola distanza automatica
+                          </button>
+                        )}
+                        <label className="flex items-center gap-2 cursor-pointer mt-2">
+                          <input type="checkbox" name="andataRitorno" checked={formData.andataRitorno} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                          <span className="text-xs font-medium text-blue-700">Andata e Ritorno</span>
+                        </label>
+                        <p className="text-xs text-blue-500 mt-2">Distanza calcolata automaticamente via OpenStreetMap. Puoi sovrascriverla sotto.</p>
+                      </>
+                    )}
+                  </div>
+
+                  {formData.usaTrasferta && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Distanza (km) — override</label>
+                          <input type="number" name="distanzaKm" min="0" value={formData.distanzaKm} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Num. Macchine</label>
+                          <input type="number" name="numMacchine" min="1" value={formData.numMacchine} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Prezzo Benzina (€/L)</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                            <input type="number" name="prezzoBenzina" min="0" step="0.01" value={formData.prezzoBenzina} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {prezzoAutoFetched ? '✓ Aggiornato automaticamente (MIMIT)' : 'Prezzo medio di default — aggiorna manualmente se necessario'}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Consumo Medio (km/L)</label>
+                          <input type="number" name="consumoMedio" min="1" step="0.5" value={formData.consumoMedio} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 bg-amber-50 p-4 rounded-xl border border-amber-100">
+                        <label className="flex items-center gap-2 cursor-pointer mb-3">
+                          <input type="checkbox" name="inclPedaggio" checked={formData.inclPedaggio} onChange={handleChange} className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500" />
+                          <span className="text-sm font-medium text-amber-800">Includi Pedaggio Autostradale</span>
+                        </label>
+                        {formData.inclPedaggio && (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="pedaggioAutoCalc" checked={formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: true }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
+                                <span className="text-sm text-amber-800">Stima automatica (~0.08 €/km)</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="pedaggioAutoCalc" checked={!formData.pedaggioAutoCalc} onChange={() => setFormData(prev => ({ ...prev, pedaggioAutoCalc: false }))} className="w-4 h-4 text-amber-600 border-gray-300 focus:ring-amber-500" />
+                                <span className="text-sm text-amber-800">Inserisci manualmente</span>
+                              </label>
+                            </div>
+                            {!formData.pedaggioAutoCalc && (
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Pedaggio Totale (€)</label>
+                                <div className="relative">
+                                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">€</div>
+                                  <input type="number" name="pedaggioManuale" min="0" step="0.5" value={formData.pedaggioManuale} onChange={handleChange} className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">Verifica su autostrade.it o ViaMichelin per il costo esatto</p>
+                              </div>
+                            )}
+                            {calc.pedaggioStimato > 0 && (
+                              <div className="flex justify-between items-center text-sm text-amber-800 bg-amber-100/50 p-2 rounded-lg">
+                                <span>
+                                  {formData.pedaggioAutoCalc
+                                    ? `${calc.distanzaEffettiva} km × 0.08 €/km × ${formData.numMacchine} macch.`
+                                    : 'Importo manuale'}
+                                </span>
+                                <span className="font-semibold">€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
 
                   <div className="mt-4 bg-purple-50 p-4 rounded-xl border border-purple-100">
                     <label className="flex items-center gap-2 cursor-pointer mb-3">
@@ -1344,15 +1412,19 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                 <span>€ {calc.totaleCostiBase.toLocaleString('it-IT')}</span>
               </div>
 
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Carburante ({formData.numMacchine} macch.)</span>
-                <span>€ {calc.costoCarburante.toLocaleString('it-IT')}</span>
-              </div>
-              {calc.pedaggioStimato > 0 && (
-                <div className="flex justify-between items-center text-slate-300">
-                  <span>Pedaggio{formData.pedaggioAutoCalc ? ' (stima)' : ''}</span>
-                  <span>€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
-                </div>
+              {formData.usaTrasferta && (
+                <>
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span>Carburante ({formData.numMacchine} macch.)</span>
+                    <span>€ {calc.costoCarburante.toLocaleString('it-IT')}</span>
+                  </div>
+                  {calc.pedaggioStimato > 0 && (
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Pedaggio{formData.pedaggioAutoCalc ? ' (stima)' : ''}</span>
+                      <span>€ {calc.pedaggioStimato.toLocaleString('it-IT')}</span>
+                    </div>
+                  )}
+                </>
               )}
               {calc.costoPernottamento > 0 && (
                 <div className="flex justify-between items-center text-slate-300">
@@ -1724,6 +1796,18 @@ function ContractPDF({ data, logoPng }) {
   const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
   const audioInclusa = Number(c.numeroImpianti || 0) > 0;
 
+  const hasClientInfo = [c.nomeCliente, c.indirizzoCliente, c.cfCliente, c.pivaCliente, c.pecSdiCliente].some(Boolean);
+  const eventContext = [
+    c.nomeLocation ? `presso ${c.nomeLocation}` : '',
+    c.indirizzoLocation ? `situata in ${c.indirizzoLocation}` : '',
+    c.dataEvento ? `il giorno ${c.dataEvento}` : ''
+  ].filter(Boolean);
+  const paymentText = [
+    c.giorniAcconto ? `entro ${c.giorniAcconto} giorni lavorativi dalla sottoscrizione` : '',
+    c.tempisticaSaldo ? `entro ${c.tempisticaSaldo}` : ''
+  ].filter(Boolean);
+  const isCausaleDataAvailable = Boolean(c.dataEvento || c.nomeCliente);
+
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
@@ -1736,15 +1820,24 @@ function ContractPDF({ data, logoPng }) {
           <Text style={{ fontWeight: 'bold' }}>{IMD_INFO.brand} ({IMD_INFO.short})</Text>, nella persona del referente artistico {IMD_INFO.referente}, nato a {IMD_INFO.natoA} il {IMD_INFO.dataNascita}, Codice Fiscale {IMD_INFO.cf}, residente in {IMD_INFO.residenza}, tel. {IMD_INFO.tel}, e-mail {IMD_INFO.email} (di seguito «IMD»);
         </Text>
         <Text style={pdfStyles.contractBetween}>E</Text>
-        <Text style={pdfStyles.contractParty}>
-          <Text style={{ fontWeight: 'bold' }}>{c.nomeCliente || '—'}</Text>, residente / con sede legale in {c.indirizzoCliente || '—'}, Codice Fiscale {c.cfCliente || '—'}{c.pivaCliente ? ` / P.IVA ${c.pivaCliente}` : ''}{c.pecSdiCliente ? `, PEC/SDI ${c.pecSdiCliente}` : ''} (di seguito «il Cliente»).
-        </Text>
+        {hasClientInfo ? (
+          <Text style={pdfStyles.contractParty}>
+            <Text style={{ fontWeight: 'bold' }}>{c.nomeCliente || ''}</Text>
+            {c.indirizzoCliente ? `, residente / con sede legale in ${c.indirizzoCliente}` : ''}
+            {c.cfCliente ? `, Codice Fiscale ${c.cfCliente}` : ''}
+            {c.pivaCliente ? ` / P.IVA ${c.pivaCliente}` : ''}
+            {c.pecSdiCliente ? `, PEC/SDI ${c.pecSdiCliente}` : ''}
+            {` (di seguito «il Cliente»).`}
+          </Text>
+        ) : null}
 
         {/* Premesse */}
         <Text style={pdfStyles.sectionHeader}>PREMESSO CHE</Text>
-        <Text style={pdfStyles.clauseText}>
-          • Il Cliente intende avvalersi delle prestazioni musicali di IMD per un evento che si terrà presso {c.nomeLocation || 'la location indicata'}, situata in {c.indirizzoLocation || '—'}, il giorno {c.dataEvento || '—'}.
-        </Text>
+        {eventContext.length ? (
+          <Text style={pdfStyles.clauseText}>
+            • Il Cliente intende avvalersi delle prestazioni musicali di IMD per un evento che si terrà {eventContext.join(', ')}.
+          </Text>
+        ) : null}
         <Text style={pdfStyles.clauseText}>
           • IMD dichiara di essere libera da impegni e disponibile a prestare la propria opera artistica.
         </Text>
@@ -1753,9 +1846,11 @@ function ContractPDF({ data, logoPng }) {
         {/* 1. Oggetto */}
         <Text style={pdfStyles.sectionHeader}>1. OGGETTO</Text>
         <Text style={pdfStyles.clauseText}>1.1 IMD si impegna a svolgere la propria esibizione musicale nell&apos;evento sopra indicato.</Text>
-        <Text style={pdfStyles.clauseText}>
-          1.2 La prestazione avrà una durata complessiva di {c.durataOre || '—'} ore, dalle {c.oraInizio || '—'} alle {c.oraFine || '—'}, secondo il seguente programma di massima:
-        </Text>
+        {(c.durataOre || c.oraInizio || c.oraFine) ? (
+          <Text style={pdfStyles.clauseText}>
+            1.2 La prestazione avrà una durata complessiva di {c.durataOre || 'da definire'} ore{c.oraInizio || c.oraFine ? `, dalle ${c.oraInizio || '—'} alle ${c.oraFine || '—'}` : ''}, secondo il seguente programma di massima:
+          </Text>
+        ) : null}
         {c.orarioMontaggio ? (
           <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.orarioMontaggio} — Montaggio e sound check</Text></View>
         ) : null}
@@ -1777,9 +1872,11 @@ function ContractPDF({ data, logoPng }) {
         <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del referente artistico {IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
         <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.</Text>
-        <Text style={pdfStyles.clauseText}>
-          2.5 La formazione per l&apos;evento sarà composta da {c.strumentiFormazione || 'strumenti da concordare'} ({c.numeroMusicisti || '—'} musicisti).
-        </Text>
+        {(c.strumentiFormazione || c.numeroMusicisti) ? (
+          <Text style={pdfStyles.clauseText}>
+            2.5 La formazione per l&apos;evento sarà composta da {c.strumentiFormazione || 'strumenti da concordare'}{c.numeroMusicisti ? ` (${c.numeroMusicisti} musicisti)` : ''}.
+          </Text>
+        ) : null}
         <Text style={pdfStyles.clauseText}>
           2.6 {audioInclusa ? 'IMD fornirà a proprie spese l\u2019attrezzatura audio/luci necessaria.' : 'Il servizio audio/luci sarà fornito da un service esterno a carico del Cliente.'}
         </Text>
@@ -1793,12 +1890,20 @@ function ContractPDF({ data, logoPng }) {
         {/* 4. Corrispettivo */}
         <Text style={pdfStyles.sectionHeader}>4. CORRISPETTIVO E SPESE</Text>
         <Text style={pdfStyles.clauseText}>4.1 Il compenso totale a carico del Cliente è di € {compenso.toLocaleString('it-IT')} + IVA, così suddiviso:</Text>
-        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Acconto (caparra confirmatoria/penitenziale): € {acconto.toLocaleString('it-IT')} + IVA alla firma del contratto, e comunque entro {c.giorniAcconto || '—'} giorni lavorativi dalla sottoscrizione.</Text></View>
-        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Saldo: € {saldo.toLocaleString('it-IT')} + IVA da corrispondersi entro {c.tempisticaSaldo || 'il giorno dell\u2019evento'}.</Text></View>
-        <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «Consulenza musicale evento {c.dataEvento || ''} - {c.nomeCliente || ''}».</Text>
-        <Text style={pdfStyles.clauseText}>
-          4.3 Le spese di viaggio sono incluse nel totale{c.inclusioni ? `, comprese ${c.inclusioni}` : ''}.{c.esclusioni ? ` Escluse eventuali spese per ${c.esclusioni}.` : ''}
-        </Text>
+        {(acconto || c.giorniAcconto) ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Acconto (caparra confirmatoria/penitenziale): € ${acconto.toLocaleString('it-IT')} + IVA alla firma del contratto` : 'Acconto:'}{c.giorniAcconto ? `, e comunque entro ${c.giorniAcconto} giorni lavorativi dalla sottoscrizione.` : '.'}</Text></View>
+        ) : null}
+        {(saldo || c.tempisticaSaldo) ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Saldo: € {saldo.toLocaleString('it-IT')} + IVA da corrispondersi{c.tempisticaSaldo ? ` entro ${c.tempisticaSaldo}` : ''}.</Text></View>
+        ) : null}
+        {isCausaleDataAvailable || c.causaleBonifico ? (
+          <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «{c.causaleBonifico || `Consulenza musicale evento ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}».</Text>
+        ) : null}
+        {(c.inclusioni || c.esclusioni) ? (
+          <Text style={pdfStyles.clauseText}>
+            4.3 Le spese di viaggio sono incluse nel totale{c.inclusioni ? `, comprese ${c.inclusioni}` : ''}{c.esclusioni ? `; escludendo ${c.esclusioni}.` : ''}
+          </Text>
+        ) : null}
 
         {/* 5. SIAE */}
         <Text style={pdfStyles.sectionHeader}>5. DIRITTI S.I.A.E.</Text>
@@ -1829,17 +1934,21 @@ function ContractPDF({ data, logoPng }) {
         <View wrap={false}>
           <Text style={pdfStyles.sectionHeader}>DICHIARAZIONI FINALI</Text>
           <Text style={pdfStyles.clauseText}>Le parti dichiarano che i dati anagrafici e fiscali indicati nel presente contratto sono veritieri e si impegnano al rispetto di ogni clausola qui sottoscritta.</Text>
-          <Text style={pdfStyles.clauseText}>Luogo: {c.luogoFirma || 'Firenze'}, Data: {c.dataFirma || ''}</Text>
+          {(c.luogoFirma || c.dataFirma) ? (
+            <Text style={pdfStyles.clauseText}>Luogo: {c.luogoFirma || 'Firenze'}{c.dataFirma ? `, Data: ${c.dataFirma}` : ''}</Text>
+          ) : null}
 
           <View style={pdfStyles.signBlock}>
             <View style={pdfStyles.signCol}>
               <Text style={pdfStyles.signLabel}>PER IMD</Text>
               <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{IMD_INFO.referente}</Text></View>
             </View>
-            <View style={pdfStyles.signCol}>
-              <Text style={pdfStyles.signLabel}>IL CLIENTE</Text>
-              <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{c.nomeCliente || ''}</Text></View>
-            </View>
+            {c.nomeCliente ? (
+              <View style={pdfStyles.signCol}>
+                <Text style={pdfStyles.signLabel}>IL CLIENTE</Text>
+                <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{c.nomeCliente}</Text></View>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -1908,10 +2017,11 @@ function PrintView({ quote, onBack }) {
 
       {/* Bottoni di controllo */}
       <div className="max-w-4xl w-full flex justify-end gap-3 mb-4">
-        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-800 rounded-lg transition-colors font-medium shadow-sm">
+        <button type="button" onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-800 rounded-lg transition-colors font-medium shadow-sm">
           <ArrowLeft size={18} /> Chiudi
         </button>
         <button
+          type="button"
           onClick={handleDownloadPdf}
           disabled={isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
@@ -2029,7 +2139,7 @@ function ContractForm({ quote, onBack, onSave }) {
     oraFine,
     orarioMontaggio: subtractOneHour(oraInizio),
     durataOre: computeDurataOre(oraInizio, oraFine),
-    minutiPausa: 30,
+    minutiPausa: 20,
     // Formazione (precompilata dal preventivo)
     strumentiFormazione: '',
     numeroMusicisti: fd.numMusicisti || '',
@@ -2042,6 +2152,7 @@ function ContractForm({ quote, onBack, onSave }) {
     tempisticaSaldo: "il giorno dell'evento",
     inclusioni: '',
     esclusioni: '',
+    causaleBonifico: '',
     // Sovrascrivi con i dati del contratto gia' salvati (se presenti)
     ...saved,
   });
@@ -2134,6 +2245,7 @@ function ContractForm({ quote, onBack, onSave }) {
         </div>
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={handleSaveContract}
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
@@ -2141,13 +2253,14 @@ function ContractForm({ quote, onBack, onSave }) {
             <Save size={18} /> {saving ? 'Salvataggio...' : savedOk ? 'Salvato ✓' : 'Salva'}
           </button>
           <button
+            type="button"
             onClick={handleDownloadContract}
             disabled={pdfGenerating}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
           >
             <FileText size={18} /> {pdfGenerating ? 'Generazione...' : 'Scarica Contratto PDF'}
           </button>
-          <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg transition-colors font-medium shadow-sm">
+          <button type="button" onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg transition-colors font-medium shadow-sm">
             <ArrowLeft size={18} /> Chiudi
           </button>
         </div>
@@ -2207,6 +2320,7 @@ function ContractForm({ quote, onBack, onSave }) {
           </div>
           {field('Giorni per Acconto', 'giorniAcconto', { type: 'number' })}
           {field('Tempistica Saldo', 'tempisticaSaldo', { full: true })}
+          {field('Causale Bonifico', 'causaleBonifico', { full: true, placeholder: 'es. Consulenza musicale evento [data] - [cliente]' })}
           {field('Inclusioni spese', 'inclusioni', { full: true, placeholder: 'es. viaggio, vitto...' })}
           {field('Esclusioni spese', 'esclusioni', { full: true, placeholder: 'es. taxi boat, rimborsi specifici...' })}
         </Section>
@@ -2407,6 +2521,7 @@ export default function App() {
             <div className="flex items-center gap-3 text-sm text-slate-500">
               <span>{session.user.email}</span>
               <button
+                type="button"
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
               >
