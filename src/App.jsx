@@ -119,7 +119,7 @@ function formatMultiplier(value) {
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
-function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint, onCreateContract }) {
+function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew, onPrint, onCreateContract }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
 
@@ -310,6 +310,14 @@ function Dashboard({ quotes, onApprove, onArchive, onEdit, onCreateNew, onPrint,
                             <Trash2 size={18} />
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => onDelete(quote.id)}
+                          title="Elimina definitivamente"
+                          className="p-2 text-red-700 hover:bg-red-100 rounded-lg transition-colors"
+                        >
+                          <XCircle size={18} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -2445,6 +2453,31 @@ export default function App() {
     setQuotes(quotes.map(q => q.id === id ? { ...q, status: 'Archiviato' } : q));
   };
 
+  const handleDelete = async (id) => {
+    const quote = quotes.find(q => q.id === id);
+    if (!quote) return;
+
+    const confirmed = window.confirm(`Eliminare definitivamente il preventivo di ${quote.client}? Questa azione non può essere annullata.`);
+    if (!confirmed) return;
+
+    if (import.meta.env.DEV) {
+      const updated = quotes.filter(q => q.id !== id);
+      setQuotes(updated); devSave(updated);
+      setSelectedQuote(prev => prev && prev.id === id ? null : prev);
+      return;
+    }
+
+    const { error } = await supabase.from('quotes').delete().eq('id', id);
+    if (error) {
+      alert('Errore: ' + error.message);
+      return;
+    }
+
+    const updated = quotes.filter(q => q.id !== id);
+    setQuotes(updated);
+    setSelectedQuote(prev => prev && prev.id === id ? null : prev);
+  };
+
   const handleEdit = (id) => {
     const quote = quotes.find(q => q.id === id);
     if (quote?.formData) {
@@ -2555,6 +2588,7 @@ export default function App() {
             quotes={quotes}
             onApprove={handleApprove}
             onArchive={handleArchive}
+            onDelete={handleDelete}
             onEdit={handleEdit}
             onCreateNew={() => setCurrentView('create')}
             onPrint={handlePrint}
