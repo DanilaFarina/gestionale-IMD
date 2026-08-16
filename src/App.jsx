@@ -2115,6 +2115,49 @@ function Login() {
 // ==========================================
 // COMPONENTE CONTRATTO (precompilato dal preventivo)
 // ==========================================
+const ContractField = ({ label, name, value, onChange, opts = {} }) => {
+  const commonProps = {
+    name,
+    value: value ?? '',
+    onChange,
+    placeholder: opts.placeholder || '',
+    className: 'w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500'
+  };
+
+  if (opts.multiline) {
+    return (
+      <div className={opts.full ? 'md:col-span-2' : ''}>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+        <textarea
+          {...commonProps}
+          rows={opts.rows || 3}
+          className={`${commonProps.className} resize-y min-h-[96px]`}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={opts.full ? 'md:col-span-2' : ''}>
+      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        {...commonProps}
+        type={opts.type || 'text'}
+      />
+    </div>
+  );
+};
+
+const ContractSection = ({ title, icon: Icon, children }) => (
+  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-slate-100 px-6 py-4 border-b border-slate-200 flex items-center gap-2">
+      <Icon size={16} className="text-slate-500" />
+      <h3 className="text-base font-semibold text-slate-700">{title}</h3>
+    </div>
+    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
+  </div>
+);
+
 function ContractForm({ quote, onBack, onSave }) {
   const fd = quote.formData || {};
   const momenti = fd.momenti || [];
@@ -2210,30 +2253,6 @@ function ContractForm({ quote, onBack, onSave }) {
     }
   };
 
-  const field = (label, name, opts = {}) => (
-    <div className={opts.full ? 'md:col-span-2' : ''}>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-      <input
-        type={opts.type || 'text'}
-        name={name}
-        value={data[name]}
-        onChange={handle}
-        placeholder={opts.placeholder || ''}
-        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-      />
-    </div>
-  );
-
-  const Section = ({ title, icon: Icon, children }) => (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="bg-slate-100 px-6 py-4 border-b border-slate-200 flex items-center gap-2">
-        <Icon size={16} className="text-slate-500" />
-        <h3 className="text-base font-semibold text-slate-700">{title}</h3>
-      </div>
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
-    </div>
-  );
-
   return (
     <div className="animate-in fade-in">
       <div className="flex items-center justify-between mb-6">
@@ -2267,26 +2286,26 @@ function ContractForm({ quote, onBack, onSave }) {
       </div>
 
       <div className="space-y-6 max-w-4xl">
-        <Section title="Dati Cliente" icon={User}>
-          {field('Nome / Ragione Sociale', 'nomeCliente', { full: true })}
-          {field('Indirizzo / Sede legale', 'indirizzoCliente', { full: true, placeholder: 'Via, civico, CAP, Città' })}
-          {field('Codice Fiscale', 'cfCliente')}
-          {field('P.IVA', 'pivaCliente')}
-          {field('PEC / Codice SDI', 'pecSdiCliente', { full: true })}
-        </Section>
+        <ContractSection title="Dati Cliente" icon={User}>
+          <ContractField label="Nome / Ragione Sociale" name="nomeCliente" value={data.nomeCliente} onChange={handle} opts={{ full: true }} />
+          <ContractField label="Indirizzo / Sede legale" name="indirizzoCliente" value={data.indirizzoCliente} onChange={handle} opts={{ full: true, placeholder: 'Via, civico, CAP, Città' }} />
+          <ContractField label="Codice Fiscale" name="cfCliente" value={data.cfCliente} onChange={handle} />
+          <ContractField label="P.IVA" name="pivaCliente" value={data.pivaCliente} onChange={handle} />
+          <ContractField label="PEC / Codice SDI" name="pecSdiCliente" value={data.pecSdiCliente} onChange={handle} opts={{ full: true }} />
+        </ContractSection>
 
-        <Section title="Evento e Location" icon={MapPin}>
-          {field('Nome Location', 'nomeLocation')}
-          {field('Data Evento', 'dataEvento')}
-          {field('Indirizzo Location', 'indirizzoLocation', { full: true })}
-        </Section>
+        <ContractSection title="Evento e Location" icon={MapPin}>
+          <ContractField label="Nome Location" name="nomeLocation" value={data.nomeLocation} onChange={handle} />
+          <ContractField label="Data Evento" name="dataEvento" value={data.dataEvento} onChange={handle} />
+          <ContractField label="Indirizzo Location" name="indirizzoLocation" value={data.indirizzoLocation} onChange={handle} opts={{ full: true }} />
+        </ContractSection>
 
-        <Section title="Orari e Programma" icon={Clock}>
-          {field('Ora Inizio', 'oraInizio')}
-          {field('Ora Fine', 'oraFine')}
-          {field('Durata (ore)', 'durataOre')}
-          {field('Orario Montaggio', 'orarioMontaggio')}
-          {field('Minuti Pausa (max)', 'minutiPausa', { type: 'number' })}
+        <ContractSection title="Orari e Programma" icon={Clock}>
+          <ContractField label="Ora Inizio" name="oraInizio" value={data.oraInizio} onChange={handle} />
+          <ContractField label="Ora Fine" name="oraFine" value={data.oraFine} onChange={handle} />
+          <ContractField label="Durata (ore)" name="durataOre" value={data.durataOre} onChange={handle} />
+          <ContractField label="Orario Montaggio" name="orarioMontaggio" value={data.orarioMontaggio} onChange={handle} />
+          <ContractField label="Minuti Pausa (max)" name="minutiPausa" value={data.minutiPausa} onChange={handle} opts={{ type: 'number' }} />
           <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Programma live (dai momenti)</p>
             {momenti.filter(m => m.titolo || m.inizio).length > 0 ? (
@@ -2302,28 +2321,28 @@ function ContractForm({ quote, onBack, onSave }) {
               <p className="text-sm text-slate-400">Nessun momento con orario nel preventivo.</p>
             )}
           </div>
-        </Section>
+        </ContractSection>
 
-        <Section title="Formazione" icon={Music}>
-          {field('Strumenti Formazione', 'strumentiFormazione', { full: true, placeholder: 'es. tromba, voce, contrabbasso...' })}
-          {field('Numero Musicisti', 'numeroMusicisti', { type: 'number' })}
-          {field('Numero Impianti Audio', 'numeroImpianti', { type: 'number' })}
-          {field('Numero Pasti', 'numeroPasti', { type: 'number' })}
-        </Section>
+        <ContractSection title="Formazione" icon={Music}>
+          <ContractField label="Strumenti Formazione" name="strumentiFormazione" value={data.strumentiFormazione} onChange={handle} opts={{ full: true, placeholder: 'es. tromba, voce, contrabbasso...' }} />
+          <ContractField label="Numero Musicisti" name="numeroMusicisti" value={data.numeroMusicisti} onChange={handle} opts={{ type: 'number' }} />
+          <ContractField label="Numero Impianti Audio" name="numeroImpianti" value={data.numeroImpianti} onChange={handle} opts={{ type: 'number' }} />
+          <ContractField label="Numero Pasti" name="numeroPasti" value={data.numeroPasti} onChange={handle} opts={{ type: 'number' }} />
+        </ContractSection>
 
-        <Section title="Corrispettivo e Spese" icon={Calculator}>
-          {field('Compenso Totale (€)', 'compensoTotale', { type: 'number' })}
-          {field('Acconto (€)', 'importoAcconto', { type: 'number' })}
+        <ContractSection title="Corrispettivo e Spese" icon={Calculator}>
+          <ContractField label="Compenso Totale (€)" name="compensoTotale" value={data.compensoTotale} onChange={handle} opts={{ type: 'number' }} />
+          <ContractField label="Acconto (€)" name="importoAcconto" value={data.importoAcconto} onChange={handle} opts={{ type: 'number' }} />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Saldo (€)</label>
             <input type="text" value={importoSaldo.toLocaleString('it-IT')} readOnly className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-slate-600" />
           </div>
-          {field('Giorni per Acconto', 'giorniAcconto', { type: 'number' })}
-          {field('Tempistica Saldo', 'tempisticaSaldo', { full: true })}
-          {field('Causale Bonifico', 'causaleBonifico', { full: true, placeholder: 'es. Consulenza musicale evento [data] - [cliente]' })}
-          {field('Inclusioni spese', 'inclusioni', { full: true, placeholder: 'es. viaggio, vitto...' })}
-          {field('Esclusioni spese', 'esclusioni', { full: true, placeholder: 'es. taxi boat, rimborsi specifici...' })}
-        </Section>
+          <ContractField label="Giorni per Acconto" name="giorniAcconto" value={data.giorniAcconto} onChange={handle} opts={{ type: 'number' }} />
+          <ContractField label="Tempistica Saldo" name="tempisticaSaldo" value={data.tempisticaSaldo} onChange={handle} opts={{ full: true }} />
+          <ContractField label="Causale Bonifico" name="causaleBonifico" value={data.causaleBonifico} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. Consulenza musicale evento [data] - [cliente]' }} />
+          <ContractField label="Inclusioni spese" name="inclusioni" value={data.inclusioni} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. viaggio, vitto...' }} />
+          <ContractField label="Esclusioni spese" name="esclusioni" value={data.esclusioni} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. taxi boat, rimborsi specifici...' }} />
+        </ContractSection>
 
         <p className="text-xs text-slate-500">
           Luogo di firma: <strong>Firenze</strong>. Data di firma: data di generazione del PDF.
