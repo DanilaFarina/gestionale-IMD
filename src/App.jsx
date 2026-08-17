@@ -1905,7 +1905,15 @@ function ContractPDF({ data, logoPng }) {
           </Text>
         ) : null}
         <Text style={pdfStyles.clauseText}>
-          2.6 {includAudio ? 'IMD fornirà a proprie spese l\u2019attrezzatura audio' : 'L\'attrezzatura audio sarà fornita da un service esterno a carico del Cliente'}{includAudio && includLuci ? ' e le luci necessarie.' : includAudio ? '; le luci saranno fornite da un service esterno.' : ' e le luci saranno fornite da un service esterno a carico del Cliente.'}
+          2.6 {
+            includAudio && includLuci
+              ? 'IMD fornirà a proprie spese l’attrezzatura audio e luci necessarie.'
+              : includAudio
+                ? 'IMD fornirà a proprie spese l’attrezzatura audio; le luci saranno fornite da un service esterno a carico del Cliente.'
+                : includLuci
+                  ? 'L’attrezzatura audio sarà fornita da un service esterno a carico del Cliente; IMD fornirà a proprie spese l’attrezzatura luci.'
+                  : 'L’attrezzatura audio e luci saranno fornite da un service esterno a carico del Cliente.'
+          }
         </Text>
 
         {/* 3. Luogo e variazioni */}
