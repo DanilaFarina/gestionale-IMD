@@ -1917,14 +1917,60 @@ function ContractPDF({ data, logoPng }) {
         <Text style={pdfStyles.sectionHeader}>5. DIRITTI S.I.A.E.</Text>
         <Text style={pdfStyles.clauseText}>5.1 I diritti d&apos;autore (SIAE) e i relativi costi di licenza sono totalmente a carico del Cliente, che dovrà provvedere al pagamento e all&apos;ottenimento del permesso entro il giorno precedente l&apos;evento, esibendo la ricevuta a IMD prima dell&apos;inizio dell&apos;esibizione.</Text>
 
-        {/* 6. Recesso */}
-        <Text style={pdfStyles.sectionHeader}>6. RECESSO E PENALI</Text>
-        <Text style={pdfStyles.clauseText}>6.1 L&apos;eventuale revoca dell&apos;ingaggio da parte del Cliente deve avvenire per iscritto tramite raccomandata A/R o PEC all&apos;indirizzo {IMD_INFO.pec}. Se il recesso avviene entro 7 giorni dalla firma e prima del versamento dell&apos;acconto, IMD è liberata da ogni obbligo.</Text>
-        <Text style={pdfStyles.clauseText}>6.2 Se il Cliente annulla il contratto entro 3 mesi dall&apos;evento, gli acconti versati saranno trattenuti da IMD a titolo di penale. Il Cliente potrebbe inoltre essere tenuto a corrispondere una somma fino a concorrenza del doppio della caparra.</Text>
-        <Text style={pdfStyles.clauseText}>6.3 Se il Cliente annulla entro 1 mese dall&apos;evento, sarà tenuto a versare una somma pari alla metà del compenso totale pattuito (o l&apos;intero importo se l&apos;annullamento avviene entro 15 giorni dall&apos;evento).</Text>
-        <Text style={pdfStyles.clauseText}>6.4 Se IMD annulla entro 30 giorni dall&apos;evento, restituirà al Cliente il doppio della caparra versata.</Text>
-        <Text style={pdfStyles.clauseText}>6.5 Se IMD annulla oltre 30 giorni prima dell&apos;evento, dovrà proporre un sostituto qualificato senza costi aggiuntivi per il Cliente. Qualora il Cliente rifiuti il sostituto, IMD restituirà il doppio della caparra.</Text>
-        <Text style={pdfStyles.clauseText}>6.6 IMD non è responsabile per inadempimenti o ritardi dovuti a caso fortuito o forza maggiore (es. calamità naturali, gravi malattie o infortuni certificati, incidenti stradali documentati durante il tragitto).</Text>
+        {/* 6. Recesso, Annullamento e Forza Maggiore */}
+        <Text style={pdfStyles.sectionHeader}>6. RECESSO, ANNULLAMENTO E FORZA MAGGIORE</Text>
+        <Text style={pdfStyles.clauseText}>6.1 <Text style={{fontWeight: 'bold'}}>Modalità di annullamento da parte del Cliente</Text>: L&apos;eventuale annullamento dell&apos;ingaggio da parte del Cliente dovrà essere comunicato per iscritto mediante raccomandata A/R oppure PEC all&apos;indirizzo {IMD_INFO.pec}. L&apos;annullamento avrà effetto dalla data di ricezione della comunicazione da parte del Gruppo.
+Qualora il Cliente comunichi il recesso entro 7 (sette) giorni dalla sottoscrizione del contratto e prima del versamento della caparra confirmatoria, il Gruppo sarà liberato da ogni obbligo relativo all&apos;esecuzione del servizio.</Text>
+
+        <Text style={pdfStyles.clauseText}>6.2 <Text style={{fontWeight: 'bold'}}>Penali di annullamento da parte del Cliente</Text>: Qualora l&apos;annullamento avvenga oltre i 7 giorni dalla firma o dopo il versamento della caparra, si applicheranno le seguenti penali in base al preavviso fornito dal Cliente rispetto alla data dell&apos;evento:</Text>
+        
+        <View style={{marginBottom: 12, marginLeft: 10}}>
+          <View style={{flexDirection: 'row', marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#000000', paddingBottom: 3}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Preavviso di annullamento</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000', textAlign: 'center'}}>Compenso totale dovuto al Gruppo</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Note sul trattamento della Caparra Confirmatoria</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Oltre 90 giorni</Text> prima dell&apos;evento</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}>Solo trattenuta della caparra confirmatoria</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Il Gruppo trattiene la caparra ai sensi dell&apos;art. 1385 C.C., senza ulteriori somme dovute.</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Da 90 a 61 giorni</Text> prima dell&apos;evento</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>30%</Text> del compenso totale pattuito</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>La caparra già versata sarà imputata a tale importo; il Cliente corrisponde solo l&apos;eventuale differenza.</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Da 60 a 31 giorni</Text> prima dell&apos;evento</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>50%</Text> del compenso totale pattuito</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>La caparra già versata sarà imputata a tale importo; il Cliente corrisponde solo l&apos;eventuale differenza.</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Da 30 a 16 giorni</Text> prima dell&apos;evento</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>75%</Text> del compenso totale pattuito</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>La caparra già versata sarà imputata a tale importo; il Cliente corrisponde solo l&apos;eventuale differenza.</Text>
+          </View>
+          <View style={{flexDirection: 'row', paddingBottom: 3}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Entro 15 giorni</Text> prima dell&apos;evento</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>100%</Text> del compenso totale pattuito</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>La caparra già versata sarà imputata a tale importo; il Cliente corrisponde solo l&apos;eventuale differenza.</Text>
+          </View>
+        </View>
+
+        <Text style={pdfStyles.clauseText}>6.3 <Text style={{fontWeight: 'bold'}}>Annullamento da parte del Gruppo</Text>: Qualora l&apos;annullamento dell&apos;evento sia imputabile al Gruppo e non derivi da una causa di forza maggiore, il Gruppo si impegna, ove possibile, a proporre al Cliente un sostituto qualificato e di adeguato livello professionale, senza costi aggiuntivi per il Cliente.</Text>
+        <View style={{marginLeft: 20, marginBottom: 6}}>
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Qualora il Cliente accetti il sostituto proposto, il servizio sarà regolarmente eseguito e il contratto resterà valido alle condizioni originariamente pattuite.</Text></View>
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Qualora il Cliente rifiuti il sostituto proposto, oppure qualora il Gruppo non sia in grado di individuare un sostituto idoneo, il Gruppo restituirà al Cliente il doppio della caparra confirmatoria versata, ai sensi dell&apos;art. 1385 del Codice Civile.</Text></View>
+        </View>
+
+        <Text style={pdfStyles.clauseText}>6.4 <Text style={{fontWeight: 'bold'}}>Sostituzione dell&apos;artista o dei componenti della formazione</Text>: Qualora l&apos;impossibilità di partecipare all&apos;evento riguardi uno o più artisti o componenti della formazione, ma non renda impossibile l&apos;esecuzione complessiva del servizio, il Gruppo potrà sostituire l&apos;artista o il componente indisponibile con un professionista di adeguato livello e con caratteristiche artistiche comparabili. Tale sostituzione non comporterà una riduzione del compenso pattuito, purché il servizio complessivamente offerto rimanga sostanzialmente equivalente a quello concordato.</Text>
+
+        <Text style={pdfStyles.clauseText}>6.5 <Text style={{fontWeight: 'bold'}}>Caso fortuito e forza maggiore</Text>: Il Gruppo non sarà responsabile per la mancata, parziale o ritardata esecuzione del servizio qualora ciò sia determinato da eventi imprevedibili, inevitabili e non imputabili al Gruppo, tali da rendere impossibile o impedire sostanzialmente l&apos;esecuzione del servizio.
+A titolo esemplificativo e non esaustivo, rientrano tra tali eventi: calamità naturali, terremoti, alluvioni, incendi, condizioni meteorologiche eccezionali, provvedimenti delle autorità, guerre, sommosse, epidemie o pandemie, scioperi non direttamente imputabili al Gruppo, gravi malattie o infortuni certificati degli artisti o del personale incaricato, nonché incidenti stradali documentati verificatisi durante il tragitto verso il luogo dell&apos;evento.
+In tali circostanze il Gruppo si impegna, ove ragionevolmente possibile, a individuare un sostituto o una soluzione alternativa idonea allo svolgimento del servizio.
+Qualora l&apos;esecuzione del servizio divenga definitivamente impossibile per causa di forza maggiore, le Parti concorderanno in buona fede le modalità di gestione delle somme eventualmente già versate, tenendo conto delle prestazioni eventualmente già eseguite e dei costi non recuperabili sostenuti dal Gruppo.</Text>
+
+        <Text style={pdfStyles.clauseText}>6.6 <Text style={{fontWeight: 'bold'}}>Comunicazioni</Text>: Le comunicazioni relative all&apos;annullamento, al recesso o a eventuali impedimenti che possano compromettere l&apos;esecuzione del servizio dovranno essere effettuate tempestivamente e secondo le modalità previste dal presente articolo.</Text>
 
         {/* 7. Privacy */}
         <Text style={pdfStyles.sectionHeader}>7. PRIVACY E DIRITTI D&apos;IMMAGINE</Text>
