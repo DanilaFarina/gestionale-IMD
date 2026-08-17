@@ -1819,7 +1819,7 @@ function ContractPDF({ data, logoPng }) {
   if (!includVitto) esclusioniBuild.push("Vitto e pasti per i musicisti");
   
   // Aggiungi esclusioni personalizzate se presenti
-  if (c.esclusioni) esclusioniBuild.push(c.esclusioni);
+  if (c.esclusoAltro) esclusioniBuild.push(c.esclusoAltro);
   
   const esclusioni = esclusioniBuild.join(", ");
 
@@ -1926,9 +1926,9 @@ function ContractPDF({ data, logoPng }) {
         {isCausaleDataAvailable || c.causaleBonifico ? (
           <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «{c.causaleBonifico || `Consulenza musicale evento ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}».</Text>
         ) : null}
-        {(c.inclusioni || esclusioni) ? (
+        {esclusioni ? (
           <Text style={pdfStyles.clauseText}>
-            4.3 {c.inclusioni ? `Sono inclusi nel prezzo: ${c.inclusioni}. ` : ''}Sono esclusi dal prezzo: {esclusioni}.
+            4.3 Sono esclusi dal prezzo: {esclusioni}.
           </Text>
         ) : null}
 
@@ -2267,13 +2267,12 @@ function ContractForm({ quote, onBack, onSave }) {
     includViaggio: Number(fd.distanzaKm || 0) > 0,
     includAlloggio: Boolean(fd.usaPernottamento),
     includVitto: false, // default: vitto a carico del cliente (esclusione)
+    esclusoAltro: '', // testo delle esclusioni personalizzate
     // Economico (default: prezzo lordo, aggiustabile col concordato)
     compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
     importoAcconto: fd.acconto || 0,
     giorniAcconto: 5,
     tempisticaSaldo: "il giorno dell'evento",
-    inclusioni: '',
-    esclusioni: '',
     causaleBonifico: '',
     // Sovrascrivi con i dati del contratto gia' salvati (se presenti)
     ...saved,
@@ -2411,28 +2410,57 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Numero Impianti Audio" name="numeroImpianti" value={data.numeroImpianti} onChange={handle} opts={{ type: 'number' }} />
           <ContractField label="Numero Pasti" name="numeroPasti" value={data.numeroPasti} onChange={handle} opts={{ type: 'number' }} />
           <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <p className="text-sm font-semibold text-slate-700 mb-3">Inclusioni Opzionali nel Prezzo</p>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="includAudio" checked={data.includAudio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                <span className="text-sm text-slate-700">Impianto Audio</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="includLuci" checked={data.includLuci} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                <span className="text-sm text-slate-700">Impianto Luci</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="includViaggio" checked={data.includViaggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                <span className="text-sm text-slate-700">Rimborso Trasferta/Viaggio</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="includAlloggio" checked={data.includAlloggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                <span className="text-sm text-slate-700">Alloggio</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="includVitto" checked={data.includVitto} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                <span className="text-sm text-slate-700">Vitto (Pasti)</span>
-              </label>
+            <p className="text-sm font-semibold text-slate-700 mb-4">Inclusioni ed Esclusioni nel Prezzo</p>
+            
+            {/* Inclusioni */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">✓ Incluso nel Prezzo</p>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="includAudio" checked={data.includAudio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                  <span className="text-sm text-slate-700">Impianto Audio</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="includLuci" checked={data.includLuci} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                  <span className="text-sm text-slate-700">Impianto Luci</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="includViaggio" checked={data.includViaggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                  <span className="text-sm text-slate-700">Rimborso Trasferta/Viaggio</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="includAlloggio" checked={data.includAlloggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                  <span className="text-sm text-slate-700">Alloggio</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="includVitto" checked={data.includVitto} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                  <span className="text-sm text-slate-700">Vitto (Pasti)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Esclusioni */}
+            <div className="pt-4 border-t border-blue-300">
+              <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-3">✗ Escluso dal Prezzo</p>
+              <div className="text-sm text-slate-700 mb-3 space-y-1">
+                {!data.includAudio && <p>• Impianto audio (fornito da service esterno)</p>}
+                {!data.includLuci && <p>• Impianto luci (fornito da service esterno)</p>}
+                {!data.includViaggio && <p>• Rimborsi di viaggio e trasferta</p>}
+                {!data.includAlloggio && <p>• Costi di alloggio</p>}
+                {!data.includVitto && <p>• Vitto e pasti per i musicisti</p>}
+                {!data.includAudio && !data.includLuci && !data.includViaggio && !data.includAlloggio && !data.includVitto && data.esclusoAltro === '' && (
+                  <p className="italic text-slate-400">Nessuna esclusione aggiunta</p>
+                )}
+              </div>
+              <label className="block text-xs font-medium text-slate-600 mb-2">Esclusioni Personalizzate (Altro):</label>
+              <textarea
+                name="esclusoAltro"
+                value={data.esclusoAltro}
+                onChange={handle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="2"
+                placeholder="es. taxi boat, rimborsi specifici, ecc."
+              />
             </div>
           </div>
         </ContractSection>
@@ -2447,8 +2475,6 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Giorni per Acconto" name="giorniAcconto" value={data.giorniAcconto} onChange={handle} opts={{ type: 'number' }} />
           <ContractField label="Tempistica Saldo" name="tempisticaSaldo" value={data.tempisticaSaldo} onChange={handle} opts={{ full: true }} />
           <ContractField label="Causale Bonifico" name="causaleBonifico" value={data.causaleBonifico} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. Consulenza musicale evento [data] - [cliente]' }} />
-          <ContractField label="Inclusioni spese" name="inclusioni" value={data.inclusioni} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. viaggio, vitto...' }} />
-          <ContractField label="Esclusioni spese" name="esclusioni" value={data.esclusioni} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. taxi boat, rimborsi specifici...' }} />
         </ContractSection>
 
         <p className="text-xs text-slate-500">
