@@ -1896,7 +1896,7 @@ function ContractPDF({ data, logoPng }) {
         {/* 2. Prestazioni */}
         <Text style={pdfStyles.sectionHeader}>2. PRESTAZIONI DI IMD</Text>
         <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {includVitto ? 'è incluso nel prezzo.' : 'è a carico del Cliente.'}</Text>
-        <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del referente artistico {IMD_INFO.referente}.</Text>
+        <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del frontman {c.nomeFrontman || IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
         <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.</Text>
         {(c.strumentiFormazione || c.numeroMusicisti) ? (
@@ -1981,8 +1981,6 @@ Qualora il Cliente comunichi il recesso entro 7 (sette) giorni dalla sottoscrizi
           <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Qualora il Cliente accetti il sostituto proposto, il servizio sarà regolarmente eseguito e il contratto resterà valido alle condizioni originariamente pattuite.</Text></View>
           <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Qualora il Cliente rifiuti il sostituto proposto, oppure qualora il Gruppo non sia in grado di individuare un sostituto idoneo, il Gruppo restituirà al Cliente il doppio della caparra confirmatoria versata, ai sensi dell&apos;art. 1385 del Codice Civile.</Text></View>
         </View>
-
-        <Text style={pdfStyles.clauseText}>6.4 <Text style={{fontWeight: 'bold'}}>Sostituzione dell&apos;artista o dei componenti della formazione</Text>: Qualora l&apos;impossibilità di partecipare all&apos;evento riguardi uno o più artisti o componenti della formazione, ma non renda impossibile l&apos;esecuzione complessiva del servizio, il Gruppo potrà sostituire l&apos;artista o il componente indisponibile con un professionista di adeguato livello e con caratteristiche artistiche comparabili. Tale sostituzione non comporterà una riduzione del compenso pattuito, purché il servizio complessivamente offerto rimanga sostanzialmente equivalente a quello concordato.</Text>
 
         <Text style={pdfStyles.clauseText}>6.5 <Text style={{fontWeight: 'bold'}}>Caso fortuito e forza maggiore</Text>: Il Gruppo non sarà responsabile per la mancata, parziale o ritardata esecuzione del servizio qualora ciò sia determinato da eventi imprevedibili, inevitabili e non imputabili al Gruppo, tali da rendere impossibile o impedire sostanzialmente l&apos;esecuzione del servizio.
 A titolo esemplificativo e non esaustivo, rientrano tra tali eventi: calamità naturali, terremoti, alluvioni, incendi, condizioni meteorologiche eccezionali, provvedimenti delle autorità, guerre, sommosse, epidemie o pandemie, scioperi non direttamente imputabili al Gruppo, gravi malattie o infortuni certificati degli artisti o del personale incaricato, nonché incidenti stradali documentati verificatisi durante il tragitto verso il luogo dell&apos;evento.
@@ -2261,6 +2259,7 @@ function ContractForm({ quote, onBack, onSave }) {
     numeroMusicisti: fd.numMusicisti || '',
     numeroImpianti: fd.numImpianti ?? 0,
     numeroPasti: fd.numPasti || '',
+    nomeFrontman: '', // nome del frontman della band
     // Inclusioni opzionali (deriv dai dati del preventivo)
     includAudio: Number(fd.numImpianti || 0) > 0,
     includLuci: true,
@@ -2407,6 +2406,7 @@ function ContractForm({ quote, onBack, onSave }) {
         <ContractSection title="Formazione" icon={Music}>
           <ContractField label="Strumenti Formazione" name="strumentiFormazione" value={data.strumentiFormazione} onChange={handle} opts={{ full: true, placeholder: 'es. tromba, voce, contrabbasso...' }} />
           <ContractField label="Numero Musicisti" name="numeroMusicisti" value={data.numeroMusicisti} onChange={handle} opts={{ type: 'number' }} />
+          <ContractField label="Nome Frontman" name="nomeFrontman" value={data.nomeFrontman} onChange={handle} opts={{ full: false, placeholder: 'Nome del frontman della band' }} />
           <ContractField label="Numero Impianti Audio" name="numeroImpianti" value={data.numeroImpianti} onChange={handle} opts={{ type: 'number' }} />
           <ContractField label="Numero Pasti" name="numeroPasti" value={data.numeroPasti} onChange={handle} opts={{ type: 'number' }} />
           <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-xl p-4">
