@@ -1802,7 +1802,26 @@ function ContractPDF({ data, logoPng }) {
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
   const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
-  const audioInclusa = Number(c.numeroImpianti || 0) > 0;
+  
+  // Inclusioni opzionali (gestite dai checkbox)
+  const includAudio = c.includAudio !== false;
+  const includLuci = c.includLuci !== false;
+  const includViaggio = c.includViaggio === true;
+  const includAlloggio = c.includAlloggio === true;
+  const includVitto = c.includVitto === true;
+
+  // Genera esclusioni dinamiche basate su inclusioni
+  const esclusioniBuild = [];
+  if (!includAudio) esclusioniBuild.push("Impianto audio (fornito da service esterno a carico del Cliente)");
+  if (!includLuci) esclusioniBuild.push("Impianto luci (fornito da service esterno a carico del Cliente)");
+  if (!includViaggio) esclusioniBuild.push("Rimborsi di viaggio e trasferta");
+  if (!includAlloggio) esclusioniBuild.push("Costi di alloggio");
+  if (!includVitto) esclusioniBuild.push("Vitto e pasti per i musicisti");
+  
+  // Aggiungi esclusioni personalizzate se presenti
+  if (c.esclusioni) esclusioniBuild.push(c.esclusioni);
+  
+  const esclusioni = esclusioniBuild.join(", ");
 
   const hasClientInfo = [c.nomeCliente, c.indirizzoCliente, c.cfCliente, c.pivaCliente, c.pecSdiCliente].some(Boolean);
   const eventContext = [
@@ -1876,7 +1895,7 @@ function ContractPDF({ data, logoPng }) {
 
         {/* 2. Prestazioni */}
         <Text style={pdfStyles.sectionHeader}>2. PRESTAZIONI DI IMD</Text>
-        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti è a carico del Cliente.</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {includVitto ? 'è incluso nel prezzo.' : 'è a carico del Cliente.'}</Text>
         <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del referente artistico {IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
         <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.</Text>
@@ -1886,7 +1905,7 @@ function ContractPDF({ data, logoPng }) {
           </Text>
         ) : null}
         <Text style={pdfStyles.clauseText}>
-          2.6 {audioInclusa ? 'IMD fornirà a proprie spese l\u2019attrezzatura audio/luci necessaria.' : 'Il servizio audio/luci sarà fornito da un service esterno a carico del Cliente.'}
+          2.6 {includAudio ? 'IMD fornirà a proprie spese l\u2019attrezzatura audio' : 'L\'attrezzatura audio sarà fornita da un service esterno a carico del Cliente'}{includAudio && includLuci ? ' e le luci necessarie.' : includAudio ? '; le luci saranno fornite da un service esterno.' : ' e le luci saranno fornite da un service esterno a carico del Cliente.'}
         </Text>
 
         {/* 3. Luogo e variazioni */}
@@ -1907,9 +1926,9 @@ function ContractPDF({ data, logoPng }) {
         {isCausaleDataAvailable || c.causaleBonifico ? (
           <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «{c.causaleBonifico || `Consulenza musicale evento ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}».</Text>
         ) : null}
-        {(c.inclusioni || c.esclusioni) ? (
+        {(c.inclusioni || esclusioni) ? (
           <Text style={pdfStyles.clauseText}>
-            4.3 Le spese di viaggio sono incluse nel totale{c.inclusioni ? `, comprese ${c.inclusioni}` : ''}{c.esclusioni ? `; escludendo ${c.esclusioni}.` : ''}
+            4.3 {c.inclusioni ? `Sono inclusi nel prezzo: ${c.inclusioni}. ` : ''}Sono esclusi dal prezzo: {esclusioni}.
           </Text>
         ) : null}
 
@@ -2242,6 +2261,12 @@ function ContractForm({ quote, onBack, onSave }) {
     numeroMusicisti: fd.numMusicisti || '',
     numeroImpianti: fd.numImpianti ?? 0,
     numeroPasti: fd.numPasti || '',
+    // Inclusioni opzionali (deriv dai dati del preventivo)
+    includAudio: Number(fd.numImpianti || 0) > 0,
+    includLuci: true,
+    includViaggio: Number(fd.distanzaKm || 0) > 0,
+    includAlloggio: Boolean(fd.usaPernottamento),
+    includVitto: false, // default: vitto a carico del cliente (esclusione)
     // Economico (default: prezzo lordo, aggiustabile col concordato)
     compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
     importoAcconto: fd.acconto || 0,
@@ -2255,8 +2280,11 @@ function ContractForm({ quote, onBack, onSave }) {
   });
 
   const handle = (e) => {
-    const { name, value, type } = e.target;
-    setData(prev => ({ ...prev, [name]: type === 'number' ? (value === '' ? '' : Number(value)) : value }));
+    const { name, value, type, checked } = e.target;
+    setData(prev => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
+    }));
   };
 
   const importoSaldo = Math.max(0, Number(data.compensoTotale || 0) - Number(data.importoAcconto || 0));
@@ -2382,6 +2410,31 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Numero Musicisti" name="numeroMusicisti" value={data.numeroMusicisti} onChange={handle} opts={{ type: 'number' }} />
           <ContractField label="Numero Impianti Audio" name="numeroImpianti" value={data.numeroImpianti} onChange={handle} opts={{ type: 'number' }} />
           <ContractField label="Numero Pasti" name="numeroPasti" value={data.numeroPasti} onChange={handle} opts={{ type: 'number' }} />
+          <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p className="text-sm font-semibold text-slate-700 mb-3">Inclusioni Opzionali nel Prezzo</p>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="includAudio" checked={data.includAudio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <span className="text-sm text-slate-700">Impianto Audio</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="includLuci" checked={data.includLuci} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <span className="text-sm text-slate-700">Impianto Luci</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="includViaggio" checked={data.includViaggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <span className="text-sm text-slate-700">Rimborso Trasferta/Viaggio</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="includAlloggio" checked={data.includAlloggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <span className="text-sm text-slate-700">Alloggio</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="includVitto" checked={data.includVitto} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <span className="text-sm text-slate-700">Vitto (Pasti)</span>
+              </label>
+            </div>
+          </div>
         </ContractSection>
 
         <ContractSection title="Corrispettivo e Spese" icon={Calculator}>
