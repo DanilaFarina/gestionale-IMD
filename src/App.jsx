@@ -2357,10 +2357,10 @@ function ContractPDF_EN({ data, logoPng }) {
 
         {/* 2. Services */}
         <Text style={pdfStyles.sectionHeader}>2. IMD SERVICES</Text>
-        <Text style={pdfStyles.clauseText}>2.1 Meals (hot meal or buffet as agreed) for musicians {escludiVitto ? 'are at the Client\'s expense.' : includVitto ? 'are included in the price.' : 'are to be agreed upon.'}</Text>
-        <Text style={pdfStyles.clauseText}>2.2 IMD may substitute backup musicians in case of emergency, except for the frontman {c.nomeFrontman || IMD_INFO.referente}.</Text>
-        <Text style={pdfStyles.clauseText}>2.3 IMD may interrupt or not perform if adverse weather or logistical conditions put at risk the safety of musicians, instruments or electrical equipment. Outdoor performances must have a covered and protected area from rain and direct sun.</Text>
-        <Text style={pdfStyles.clauseText}>2.4 The musical repertoire will be chosen autonomously by IMD; the Client may suggest preferred songs or agree on specific requests in advance.</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Meals (hot meal or buffet as agreed) for musicians {escludiVitto ? "are charged to the Client." : includVitto ? "are included in the compensation." : "are to be agreed upon separately."}</Text>
+        <Text style={pdfStyles.clauseText}>2.2 IMD may substitute additional musicians in case of unforeseen circumstances, except for the lead performer {c.nomeFrontman || IMD_INFO.referente}.</Text>
+        <Text style={pdfStyles.clauseText}>2.3 IMD reserves the right to interrupt or decline performance if adverse weather or logistical conditions jeopardize the safety of musicians, instruments, or electrical equipment. In the event of outdoor performance, a covered and protected area from rain and direct sunlight must be provided by the Client.</Text>
+        <Text style={pdfStyles.clauseText}>2.4 The musical repertoire will be chosen autonomously by IMD; the Client may suggest preferred songs from the repertoire. </Text>
         {(c.strumentiFormazione || c.numeroMusicisti) ? (
           <Text style={pdfStyles.clauseText}>
             2.5 The formation for the event will consist of {c.strumentiFormazione || 'instruments to be determined'}{c.numeroMusicisti ? ` (${c.numeroMusicisti} musicians)` : ''}.
@@ -2369,18 +2369,18 @@ function ContractPDF_EN({ data, logoPng }) {
         <Text style={pdfStyles.clauseText}>
           2.6 {
             escludiAudio && escludiLuci
-              ? 'Audio and lighting equipment will be provided by an external service at the Client\'s expense.'
+              ? "Audio and lighting equipment will be provided by an external service at the Client's expense."
               : escludiAudio
-                ? 'Audio equipment will be provided by an external service at the Client\'s expense; lighting will be provided by IMD.'
+                ? "Audio equipment will be provided by an external service at the Client's expense; lighting will be provided by IMD at its own expense."
                 : escludiLuci
-                  ? 'IMD will provide audio equipment at its own expense; lighting will be provided by an external service at the Client\'s expense.'
+                  ? "IMD will provide audio equipment at its own expense; lighting will be provided by an external service at the Client's expense."
                   : includAudio && includLuci
-                    ? 'IMD will provide audio and lighting equipment at its own expense.'
+                    ? "IMD will provide audio and lighting equipment at its own expense."
                     : includAudio
-                      ? 'IMD will provide audio equipment at its own expense.'
+                      ? "IMD will provide audio equipment at its own expense."
                       : includLuci
-                        ? 'IMD will provide lighting equipment at its own expense.'
-                        : 'Audio and lighting equipment are to be agreed upon between the parties.'
+                        ? "IMD will provide lighting equipment at its own expense."
+                        : "Audio and lighting equipment specifications are to be mutually agreed upon in advance."
           }
         </Text>
 
@@ -2426,27 +2426,27 @@ If the Client cancels within 7 (seven) days from contract signing and before dep
             <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Deposit Treatment</Text>
           </View>
           <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
-            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>More than 90 days</Text> before</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>More than 90 days</Text> before the event</Text>
             <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}>Deposit only</Text>
             <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>IMD retains the deposit as liquidated damages.</Text>
           </View>
           <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
-            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>90 to 61 days</Text> before</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>90 to 61 days</Text> before the event</Text>
             <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>30%</Text></Text>
             <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
           </View>
           <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
-            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>60 to 31 days</Text> before</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>60 to 31 days</Text> before the event</Text>
             <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>50%</Text></Text>
             <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
           </View>
           <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
-            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>30 to 16 days</Text> before</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>30 to 16 days</Text> before the event</Text>
             <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>75%</Text></Text>
             <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
           </View>
           <View style={{flexDirection: 'row', paddingBottom: 3}}>
-            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Within 15 days</Text> before</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Within 15 days</Text> before the event</Text>
             <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>100%</Text></Text>
             <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
           </View>
