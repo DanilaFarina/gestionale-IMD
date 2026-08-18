@@ -1911,7 +1911,7 @@ function ContractPDF({ data, logoPng }) {
         <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {escludiVitto ? 'è a carico del Cliente.' : includVitto ? 'è incluso nel prezzo.' : 'è da concordare.'}</Text>
         <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del frontman {c.nomeFrontman || IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
-        <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.</Text>
+        <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali appartenenti al repertorio.</Text>
         {(c.strumentiFormazione || c.numeroMusicisti) ? (
           <Text style={pdfStyles.clauseText}>
             2.5 La formazione per l&apos;evento sarà composta da {c.strumentiFormazione || 'strumenti da concordare'}{c.numeroMusicisti ? ` (${c.numeroMusicisti} musicisti)` : ''}.
