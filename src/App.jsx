@@ -2060,11 +2060,452 @@ Qualora l&apos;esecuzione del servizio divenga definitivamente impossibile per c
 }
 
 // ==========================================
+// DOCUMENTO PDF PREVENTIVO INGLESE
+// ==========================================
+function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
+  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const inclusi = ['Musical performance as per program'];
+  if (fd.usaCoordinator) inclusi.push('Consultation, direction and artistic coordination');
+  if (Number(fd.distanzaKm) > 0) inclusi.push(`Travel expenses`);
+  if (fd.usaPernottamento) inclusi.push(`Accommodation (${fd.numNotti} night${Number(fd.numNotti) > 1 ? 's' : ''} × ${fd.numMusicisti} musicians)`);
+  if (Number(fd.numImpianti) > 0) inclusi.push(`Professional audio equipment`);
+  if (Number(fd.costoDj) > 0) inclusi.push('DJ Set');
+  if (fd.usaBraniRichiesta) inclusi.push('Arrangement and rehearsal of requested songs');
+
+  const esclusioni = [
+    "Copyright (S.I.A.E.) – charged to Client (by the day before the event)",
+    `Meals – seated meal for ${fd.numPasti || ''} staff`,
+  ];
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        {logoPng ? <Image style={pdfStyles.logo} src={logoPng} /> : null}
+        <Text style={pdfStyles.docMeta}>Issue Date: {today}   |   Offer Valid Until: {expiry}</Text>
+
+        {/* 1. Event Details */}
+        <Text style={pdfStyles.sectionHeader}>1. Event Details</Text>
+        <View style={pdfStyles.infoGrid}>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Client / Agency</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.client}</Text>
+          </View>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Event Type</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.type}</Text>
+          </View>
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Event Date</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.date}</Text>
+          </View>
+          {fd.nomeLocation ? (
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Venue Name</Text>
+              <Text style={pdfStyles.fieldValue}>{fd.nomeLocation}</Text>
+            </View>
+          ) : null}
+          <View style={pdfStyles.infoItem}>
+            <Text style={pdfStyles.fieldLabel}>Location</Text>
+            <Text style={pdfStyles.fieldValue}>{quote.location}</Text>
+          </View>
+          {fd.numeroOspiti ? (
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Estimated Guests</Text>
+              <Text style={pdfStyles.fieldValue}>{String(fd.numeroOspiti)} pax</Text>
+            </View>
+          ) : null}
+          {getOrarioComplessivo(fd.momenti) ? (
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Estimated Event Time</Text>
+              <Text style={pdfStyles.fieldValue}>{getOrarioComplessivo(fd.momenti)}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* 2. Artistic Proposal */}
+        <View>
+          <Text style={pdfStyles.sectionHeader}>2. Artistic Proposal</Text>
+          {(fd.momenti || []).filter(m => m.titolo).length > 0
+            ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
+                <View key={i} style={pdfStyles.momentoRow} wrap={false}>
+                  <Text style={pdfStyles.momentoBullet}>•</Text>
+                  <View style={pdfStyles.momentoContent}>
+                    <Text style={pdfStyles.momentoTitle}>
+                      {m.titolo}{(m.inizio || m.fine) ? `  \u2014  Time: ${[m.inizio, m.fine].filter(Boolean).join(' \u2013 ')}` : ''}
+                    </Text>
+                    {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
+                  </View>
+                </View>
+              ))
+            : <View style={pdfStyles.momentoRow}><Text style={pdfStyles.momentoDesc}>No moments specified</Text></View>
+          }
+        </View>
+
+        {/* 3. Economic Conditions */}
+        <View>
+          <Text style={pdfStyles.sectionHeader}>3. Economic Conditions</Text>
+          <View style={pdfStyles.ecoBox} wrap={false}>
+            <View style={pdfStyles.ecoRow}>
+              <Text style={pdfStyles.ecoLabel}>Gross Price</Text>
+              <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + VAT 22%</Text>
+            </View>
+            <View style={pdfStyles.ecoDivider} />
+            <View style={pdfStyles.ecoRow}>
+              <Text style={pdfStyles.ecoLabelStrong}>Discount for You</Text>
+              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} + VAT 22%</Text>
+            </View>
+            {acconto > 0 ? (
+              <>
+                <View style={pdfStyles.ecoDivider} />
+                <View style={pdfStyles.ecoSubRow}>
+                  <Text style={pdfStyles.ecoSubLabel}>Deposit (confirmation deposit)</Text>
+                  <Text style={pdfStyles.ecoSubValue}>€ {acconto.toLocaleString('it-IT')}</Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+
+          {/* Included / Excluded */}
+          <View style={{ marginTop: 14, flexDirection: 'row' }}>
+            <View style={pdfStyles.twoColLeft}>
+              <Text style={pdfStyles.colSubHeader}>INCLUDED IN PRICE</Text>
+              {inclusi.map((item, i) => (
+                <View key={i} style={pdfStyles.bulletRow}>
+                  <Text style={pdfStyles.bulletDot}>•</Text>
+                  <Text style={pdfStyles.bulletText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={pdfStyles.twoColRight}>
+              <Text style={pdfStyles.colSubHeader}>EXCLUDED FROM PRICE</Text>
+              {esclusioni.map((item, i) => (
+                <View key={i} style={pdfStyles.bulletRow}>
+                  <Text style={pdfStyles.bulletDot}>•</Text>
+                  <Text style={pdfStyles.bulletText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* 4. Technical Rider */}
+        <View>
+          <Text style={pdfStyles.sectionHeader}>4. Technical Rider &amp; Logistics</Text>
+          {[
+            `Audio equipment: ${Number(fd.numImpianti) > 0 ? 'Provided by the band' : 'To be arranged by client/service'}`,
+            'Appropriate electrical connection at performance points',
+            "Dressing room or reserved area for changes, instrument storage and personal belongings of musicians",
+            "Shade or cover from sun (tent/umbrella) for artists and instruments in case of outdoor performance",
+            "Access to venue at least 1 hour before for setup and soundcheck",
+            `Meals: hot meal for ${fd.numPasti || ''} staff`,
+          ].map((item, i) => (
+            <View key={i} style={pdfStyles.bulletRow}>
+              <Text style={pdfStyles.bulletDot}>•</Text>
+              <Text style={pdfStyles.bulletText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* 5. Multimedia */}
+        <View>
+          <Text style={pdfStyles.sectionHeader}>5. Multimedia Materials</Text>
+          {['Website: www.italianmusicdesigner.com', 'Video: youtube.com/@ItalianMusicDesigner'].map((item, i) => (
+            <View key={i} style={pdfStyles.bulletRow}>
+              <Text style={pdfStyles.bulletDot}>•</Text>
+              <Text style={pdfStyles.bulletText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* 6. Contacts */}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>6. Contacts</Text>
+          <View style={pdfStyles.infoGrid}>
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Artistic Director</Text>
+              <Text style={pdfStyles.fieldValue}>Giovanni Gargini</Text>
+            </View>
+            <View style={pdfStyles.infoItem}>
+              <Text style={pdfStyles.fieldLabel}>Phone</Text>
+              <Text style={pdfStyles.fieldValue}>+39 333 828 3982</Text>
+            </View>
+            <View style={pdfStyles.infoItemFull}>
+              <Text style={pdfStyles.fieldLabel}>E-mail</Text>
+              <Text style={pdfStyles.fieldValue}>giovannigargini@gmail.com</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={pdfStyles.note}>
+          This quote is valid for 30 days from the issue date.
+        </Text>
+        <View style={pdfStyles.footer}>
+          <View style={pdfStyles.footerLine} />
+          <Text style={pdfStyles.footerBrand}>The Italian Music Designer</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+// ==========================================
+// DOCUMENTO PDF CONTRATTO INGLESE
+// ==========================================
+function ContractPDF_EN({ data, logoPng }) {
+  const c = data;
+  const compenso = Number(c.compensoTotale || 0);
+  const acconto = Number(c.importoAcconto || 0);
+  const saldo = Math.max(0, compenso - acconto);
+  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
+  
+  const includAudio = c.includAudio === true;
+  const escludiAudio = c.escludiAudio === true;
+  const includLuci = c.includLuci === true;
+  const escludiLuci = c.escludiLuci === true;
+  const includViaggio = c.includViaggio === true;
+  const escludiViaggio = c.escludiViaggio === true;
+  const includAlloggio = c.includAlloggio === true;
+  const escludiAlloggio = c.escludiAlloggio === true;
+  const includVitto = c.includVitto === true;
+  const escludiVitto = c.escludiVitto === true;
+
+  const inclusioniBuild = [];
+  if (includAudio) inclusioniBuild.push("audio equipment");
+  if (includLuci) inclusioniBuild.push("lighting equipment");
+  if (includViaggio) inclusioniBuild.push("travel and transportation reimbursement");
+  if (includAlloggio) inclusioniBuild.push("accommodation");
+  if (includVitto) inclusioniBuild.push("meals for musicians");
+
+  const esclusioniBuild = [];
+  if (escludiAudio) esclusioniBuild.push("audio equipment (provided by external service at Client's expense)");
+  if (escludiLuci) esclusioniBuild.push("lighting equipment (provided by external service at Client's expense)");
+  if (escludiViaggio) esclusioniBuild.push("travel and transportation reimbursement");
+  if (escludiAlloggio) esclusioniBuild.push("accommodation costs");
+  if (escludiVitto) esclusioniBuild.push("meals for musicians");
+  if (c.esclusoAltro) esclusioniBuild.push(c.esclusoAltro);
+  
+  const inclusioni = inclusioniBuild.join(", ");
+  const esclusioni = esclusioniBuild.join(", ");
+
+  const hasClientInfo = [c.nomeCliente, c.indirizzoCliente, c.cfCliente, c.pivaCliente, c.pecSdiCliente].some(Boolean);
+  const eventContext = [
+    c.nomeLocation ? `at ${c.nomeLocation}` : '',
+    c.indirizzoLocation ? `located in ${c.indirizzoLocation}` : '',
+    c.dataEvento ? `on ${c.dataEvento}` : ''
+  ].filter(Boolean);
+  const isCausaleDataAvailable = Boolean(c.dataEvento || c.nomeCliente);
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        {logoPng ? <Image style={pdfStyles.logo} src={logoPng} /> : null}
+        <Text style={pdfStyles.contractTitle}>Private Deed for Artistic Performance</Text>
+
+        {/* Parties */}
+        <Text style={pdfStyles.contractBetween}>BETWEEN THE PARTIES</Text>
+        <Text style={pdfStyles.contractParty}>
+          <Text style={{ fontWeight: 'bold' }}>{IMD_INFO.brand} ({IMD_INFO.short})</Text>, represented by the artistic director {IMD_INFO.referente}, born in {IMD_INFO.natoA} on {IMD_INFO.dataNascita}, Tax ID {IMD_INFO.cf}, resident in {IMD_INFO.residenza}, phone {IMD_INFO.tel}, e-mail {IMD_INFO.email} (hereinafter "IMD");
+        </Text>
+        <Text style={pdfStyles.contractBetween}>AND</Text>
+        {hasClientInfo ? (
+          <Text style={pdfStyles.contractParty}>
+            <Text style={{ fontWeight: 'bold' }}>{c.nomeCliente || ''}</Text>
+            {c.indirizzoCliente ? `, resident / with registered office in ${c.indirizzoCliente}` : ''}
+            {c.cfCliente ? `, Tax ID ${c.cfCliente}` : ''}
+            {c.pivaCliente ? ` / VAT ${c.pivaCliente}` : ''}
+            {c.pecSdiCliente ? `, PEC/SDI ${c.pecSdiCliente}` : ''}
+            {` (hereinafter "the Client").`}
+          </Text>
+        ) : null}
+
+        {/* Preamble */}
+        <Text style={pdfStyles.sectionHeader}>WHEREAS</Text>
+        {eventContext.length ? (
+          <Text style={pdfStyles.clauseText}>
+            • The Client intends to use the musical services of IMD for an event that will be held {eventContext.join(', ')}.
+          </Text>
+        ) : null}
+        <Text style={pdfStyles.clauseText}>
+          • IMD declares that it is free from commitments and available to provide its artistic performance.
+        </Text>
+        <Text style={pdfStyles.clauseText}>Now, therefore, the parties agree and stipulate as follows:</Text>
+
+        {/* 1. Subject Matter */}
+        <Text style={pdfStyles.sectionHeader}>1. SUBJECT MATTER</Text>
+        <Text style={pdfStyles.clauseText}>1.1 IMD commits to perform its musical performance at the event described above.</Text>
+        {(c.durataOre || c.oraInizio || c.oraFine) ? (
+          <Text style={pdfStyles.clauseText}>
+            1.2 The performance will have a total duration of {c.durataOre || 'to be determined'} hours{c.oraInizio || c.oraFine ? `, from ${c.oraInizio || '—'} to ${c.oraFine || '—'}` : ''}, according to the following schedule:
+          </Text>
+        ) : null}
+        {c.orarioMontaggio ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.orarioMontaggio} — Setup and sound check</Text></View>
+        ) : null}
+        {momenti.map((m, i) => (
+          <View key={i} style={pdfStyles.bulletRow}>
+            <Text style={pdfStyles.bulletDot}>•</Text>
+            <Text style={pdfStyles.bulletText}>
+              {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live performance "${m.titolo}"` : ''}{c.minutiPausa ? ` with breaks of max ${c.minutiPausa} minutes` : ''}
+            </Text>
+          </View>
+        ))}
+        {c.oraFine ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.oraFine} — End of performance</Text></View>
+        ) : null}
+
+        {/* 2. Services */}
+        <Text style={pdfStyles.sectionHeader}>2. IMD SERVICES</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Meals (hot meal or buffet as agreed) for musicians {escludiVitto ? 'are at the Client\'s expense.' : includVitto ? 'are included in the price.' : 'are to be agreed upon.'}</Text>
+        <Text style={pdfStyles.clauseText}>2.2 IMD may substitute backup musicians in case of emergency, except for the frontman {c.nomeFrontman || IMD_INFO.referente}.</Text>
+        <Text style={pdfStyles.clauseText}>2.3 IMD may interrupt or not perform if adverse weather or logistical conditions put at risk the safety of musicians, instruments or electrical equipment. Outdoor performances must have a covered and protected area from rain and direct sun.</Text>
+        <Text style={pdfStyles.clauseText}>2.4 The musical repertoire will be chosen autonomously by IMD; the Client may suggest preferred songs or agree on specific requests in advance.</Text>
+        {(c.strumentiFormazione || c.numeroMusicisti) ? (
+          <Text style={pdfStyles.clauseText}>
+            2.5 The formation for the event will consist of {c.strumentiFormazione || 'instruments to be determined'}{c.numeroMusicisti ? ` (${c.numeroMusicisti} musicians)` : ''}.
+          </Text>
+        ) : null}
+        <Text style={pdfStyles.clauseText}>
+          2.6 {
+            escludiAudio && escludiLuci
+              ? 'Audio and lighting equipment will be provided by an external service at the Client\'s expense.'
+              : escludiAudio
+                ? 'Audio equipment will be provided by an external service at the Client\'s expense; lighting will be provided by IMD.'
+                : escludiLuci
+                  ? 'IMD will provide audio equipment at its own expense; lighting will be provided by an external service at the Client\'s expense.'
+                  : includAudio && includLuci
+                    ? 'IMD will provide audio and lighting equipment at its own expense.'
+                    : includAudio
+                      ? 'IMD will provide audio equipment at its own expense.'
+                      : includLuci
+                        ? 'IMD will provide lighting equipment at its own expense.'
+                        : 'Audio and lighting equipment are to be agreed upon between the parties.'
+          }
+        </Text>
+
+        {/* 3. Venue and Changes */}
+        <Text style={pdfStyles.sectionHeader}>3. VENUE AND MODIFICATIONS</Text>
+        <Text style={pdfStyles.clauseText}>3.1 Any extensions of time or additional services beyond what agreed will result in additional charges, to be communicated by IMD and paid by the Client.</Text>
+        <Text style={pdfStyles.clauseText}>3.2 The parties are bound exclusively to the services, locations, dates and times indicated in this contract.</Text>
+        <Text style={pdfStyles.clauseText}>3.3 IMD commits to arrive at the venue in time for setup and sound check.</Text>
+
+        {/* 4. Compensation */}
+        <Text style={pdfStyles.sectionHeader}>4. COMPENSATION AND EXPENSES</Text>
+        <Text style={pdfStyles.clauseText}>4.1 The total compensation due from the Client is € {compenso.toLocaleString('it-IT')} + VAT 22%, broken down as follows:</Text>
+        {(acconto || c.giorniAcconto) ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Deposit (confirmation deposit): € ${acconto.toLocaleString('it-IT')} + VAT 22% at contract signing` : 'Deposit:'}{c.giorniAcconto ? `, due within ${c.giorniAcconto} business days from signing.` : '.'}</Text></View>
+        ) : null}
+        {(saldo || c.tempisticaSaldo) ? (
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Final Payment: € {saldo.toLocaleString('it-IT')} + VAT 22% due{c.tempisticaSaldo ? ` ${c.tempisticaSaldo}` : ''}.</Text></View>
+        ) : null}
+        {isCausaleDataAvailable || c.causaleBonifico ? (
+          <Text style={pdfStyles.clauseText}>4.2 Payment shall be made by bank transfer to IBAN {IMD_INFO.iban} in the name of {IMD_INFO.ibanIntestatario}. Reference: "{c.causaleBonifico || `Musical performance event ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}".</Text>
+        ) : null}
+        {(inclusioni || esclusioni) ? (
+          <Text style={pdfStyles.clauseText}>
+            4.3 {inclusioni ? `Included in the price: ${inclusioni}.` : ''}{esclusioni ? ` Excluded from the price: ${esclusioni}.` : ''}
+          </Text>
+        ) : null}
+
+        {/* 5. Copyright */}
+        <Text style={pdfStyles.sectionHeader}>5. COPYRIGHT RIGHTS</Text>
+        <Text style={pdfStyles.clauseText}>5.1 Author rights (SIAE) and related licensing costs are entirely the Client's responsibility, who must arrange payment and obtain the license by the day before the event, providing the receipt to IMD before the start of the performance.</Text>
+
+        {/* 6. Cancellation and Force Majeure */}
+        <Text style={pdfStyles.sectionHeader}>6. CANCELLATION AND FORCE MAJEURE</Text>
+        <Text style={pdfStyles.clauseText}>6.1 <Text style={{fontWeight: 'bold'}}>Cancellation by Client</Text>: Any cancellation by the Client must be communicated in writing by registered mail or PEC to {IMD_INFO.pec}. Cancellation takes effect on the date of receipt of the communication by IMD.
+If the Client cancels within 7 (seven) days from contract signing and before deposit payment, IMD is released from all obligations regarding performance.</Text>
+
+        <Text style={pdfStyles.clauseText}>6.2 <Text style={{fontWeight: 'bold'}}>Cancellation Penalties</Text>: If cancellation occurs after 7 days from signing or after deposit payment, the following penalties apply based on notice given:</Text>
+        
+        <View style={{marginBottom: 12, marginLeft: 10}}>
+          <View style={{flexDirection: 'row', marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#000000', paddingBottom: 3}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Notice Period</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000', textAlign: 'center'}}>Total Compensation Due</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Deposit Treatment</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>More than 90 days</Text> before</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}>Deposit only</Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>IMD retains the deposit as liquidated damages.</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>90 to 61 days</Text> before</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>30%</Text></Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>60 to 31 days</Text> before</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>50%</Text></Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
+          </View>
+          <View style={{flexDirection: 'row', marginBottom: 4, paddingBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#d6d3d1'}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>30 to 16 days</Text> before</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>75%</Text></Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
+          </View>
+          <View style={{flexDirection: 'row', paddingBottom: 3}}>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}><Text style={{fontWeight: 'bold'}}>Within 15 days</Text> before</Text>
+            <Text style={{flex: 0.8, fontSize: PDF_FS, color: '#000000', textAlign: 'center'}}><Text style={{fontWeight: 'bold'}}>100%</Text></Text>
+            <Text style={{flex: 1.2, fontSize: PDF_FS, color: '#000000'}}>Deposit is credited; client pays difference.</Text>
+          </View>
+        </View>
+
+        <Text style={pdfStyles.clauseText}>6.3 <Text style={{fontWeight: 'bold'}}>Cancellation by IMD</Text>: If IMD must cancel and it is not due to force majeure, IMD will propose a qualified replacement at no additional cost to the Client. If the Client accepts, the service proceeds under the original terms. If the Client refuses or no substitute is found, IMD will refund double the deposit amount.</Text>
+
+        <Text style={pdfStyles.clauseText}>6.5 <Text style={{fontWeight: 'bold'}}>Force Majeure</Text>: IMD is not liable for failure, partial or delayed performance if caused by unforeseen, unavoidable events beyond IMD's control that make performance impossible. These include natural disasters, earthquakes, floods, fires, exceptional weather, government actions, war, riots, epidemics, strikes, serious illness or certified injuries, or documented road accidents en route. IMD will attempt to find an alternative solution. If performance becomes permanently impossible due to force majeure, the parties will agree in good faith on how to handle any amounts already paid.</Text>
+
+        {/* 7. Privacy */}
+        <Text style={pdfStyles.sectionHeader}>7. PRIVACY AND IMAGE RIGHTS</Text>
+        <Text style={pdfStyles.clauseText}>7.1 The Client authorizes the processing of personal data for performance of this contract in accordance with GDPR (EU Reg. 2016/679).</Text>
+        <Text style={pdfStyles.clauseText}>7.2 The Client authorizes recording and publication of event images for IMD's promotional use (social media, website).</Text>
+        <Text style={pdfStyles.clauseText}>7.3 Use of such images is forbidden in contexts that may damage the dignity or reputation of either party.</Text>
+
+        {/* 8. Technical Requirements */}
+        <Text style={pdfStyles.sectionHeader}>8. TECHNICAL AND LOGISTICAL REQUIREMENTS</Text>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Safe electrical connection near the performance area.</Text></View>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Water and glasses for {c.numeroPasti || '—'} musicians.</Text></View>
+        <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Dressing room/changing area for musicians.</Text></View>
+
+        {/* Final Declarations */}
+        <View wrap={false}>
+          <Text style={pdfStyles.sectionHeader}>FINAL DECLARATIONS</Text>
+          <Text style={pdfStyles.clauseText}>The parties declare that the personal and tax data provided in this contract are true and commit to complying with all terms herein.</Text>
+          {(c.luogoFirma || c.dataFirma) ? (
+            <Text style={pdfStyles.clauseText}>Place: {c.luogoFirma || 'Florence'}{c.dataFirma ? `, Date: ${c.dataFirma}` : ''}</Text>
+          ) : null}
+
+          <View style={pdfStyles.signBlock}>
+            <View style={pdfStyles.signCol}>
+              <Text style={pdfStyles.signLabel}>FOR IMD</Text>
+              <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{IMD_INFO.referente}</Text></View>
+            </View>
+            {c.nomeCliente ? (
+              <View style={pdfStyles.signCol}>
+                <Text style={pdfStyles.signLabel}>THE CLIENT</Text>
+                <View style={pdfStyles.signLine}><Text style={pdfStyles.signName}>{c.nomeCliente}</Text></View>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={pdfStyles.footer}>
+          <View style={pdfStyles.footerLine} />
+          <Text style={pdfStyles.footerBrand}>The Italian Music Designer</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+// ==========================================
 // COMPONENTE STAMPA / PDF
 // ==========================================
 function PrintView({ quote, onBack }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [logoPng, setLogoPng] = useState('');
+  const [language, setLanguage] = useState('IT');
   const fd = quote.formData || {};
   const band = fd.band || '';
   const acconto = Number(fd.acconto || 0);
@@ -2080,7 +2521,17 @@ function PrintView({ quote, onBack }) {
   }, []);
 
   // Unica fonte di verità: il documento PDF react-pdf
-  const pdfDoc = (
+  const pdfDoc = language === 'EN' ? (
+    <QuotePDF_EN
+      quote={quote}
+      prezzoLordo={prezzoLordo}
+      scontoperTe={scontoperTe}
+      logoPng={logoPng}
+      band={band}
+      acconto={acconto}
+      fd={fd}
+    />
+  ) : (
     <QuotePDF
       quote={quote}
       prezzoLordo={prezzoLordo}
@@ -2099,7 +2550,7 @@ function PrintView({ quote, onBack }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Preventivo_${quote.id}.pdf`;
+      a.download = `Preventivo_${quote.id}_${language}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2114,18 +2565,44 @@ function PrintView({ quote, onBack }) {
     <div className="min-h-screen bg-stone-100 p-4 md:p-8 flex flex-col items-center animate-in fade-in">
 
       {/* Bottoni di controllo */}
-      <div className="max-w-4xl w-full flex justify-end gap-3 mb-4">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-800 rounded-lg transition-colors font-medium shadow-sm">
-          <ArrowLeft size={18} /> Chiudi
-        </button>
-        <button
-          type="button"
-          onClick={handleDownloadPdf}
-          disabled={isGenerating}
-          className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
-        >
-          <Printer size={18} /> {isGenerating ? 'Generazione...' : 'Scarica PDF'}
-        </button>
+      <div className="max-w-4xl w-full flex justify-between items-center gap-3 mb-4">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setLanguage('IT')}
+            className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+              language === 'IT' 
+                ? 'bg-stone-800 text-white' 
+                : 'bg-white border border-stone-300 text-stone-800 hover:bg-stone-50'
+            }`}
+          >
+            ITA
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage('EN')}
+            className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+              language === 'EN' 
+                ? 'bg-stone-800 text-white' 
+                : 'bg-white border border-stone-300 text-stone-800 hover:bg-stone-50'
+            }`}
+          >
+            ENG
+          </button>
+        </div>
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onBack} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-800 rounded-lg transition-colors font-medium shadow-sm">
+            <ArrowLeft size={18} /> Chiudi
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-lg transition-colors font-medium shadow-sm disabled:opacity-70"
+          >
+            <Printer size={18} /> {isGenerating ? 'Generazione...' : 'Scarica PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Anteprima live del PDF (stessa fonte del file scaricato) */}
@@ -2322,6 +2799,7 @@ function ContractForm({ quote, onBack, onSave }) {
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [contractLanguage, setContractLanguage] = useState('IT');
   const logoPngRef = useRef('');
 
   const handleSaveContract = async () => {
@@ -2349,12 +2827,14 @@ function ContractForm({ quote, onBack, onSave }) {
         luogoFirma: 'Firenze',
         dataFirma: new Date().toLocaleDateString('it-IT'),
       };
-      const doc = <ContractPDF data={contractData} logoPng={logoPngRef.current} />;
+      const doc = contractLanguage === 'EN' 
+        ? <ContractPDF_EN data={contractData} logoPng={logoPngRef.current} />
+        : <ContractPDF data={contractData} logoPng={logoPngRef.current} />;
       const blob = await pdf(doc).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Contratto_${quote.id}.pdf`;
+      a.download = `Contratto_${quote.id}_${contractLanguage}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2375,6 +2855,30 @@ function ContractForm({ quote, onBack, onSave }) {
           <p className="text-slate-500 text-sm">Precompilato dal preventivo {quote.id}. Completa i dati mancanti.</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setContractLanguage('IT')}
+              className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                contractLanguage === 'IT' 
+                  ? 'bg-slate-800 text-white' 
+                  : 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              ITA
+            </button>
+            <button
+              type="button"
+              onClick={() => setContractLanguage('EN')}
+              className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                contractLanguage === 'EN' 
+                  ? 'bg-slate-800 text-white' 
+                  : 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              ENG
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleSaveContract}
