@@ -119,7 +119,7 @@ function formatMultiplier(value) {
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
-function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew, onPrint, onCreateContract }) {
+function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew, onPrint, onCreateContract, onLogout }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
 
@@ -152,14 +152,25 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew
             <p className="text-slate-500 mt-0.5 text-sm">Gestisci le tue richieste, calcola i cachet e chiudi le date.</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onCreateNew}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
-        >
-          <Plus size={20} />
-          Crea Nuovo Preventivo
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
+          >
+            <Plus size={20} />
+            Crea Nuovo Preventivo
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-4 py-3 rounded-xl font-medium shadow-sm transition-colors"
+            title="Esci dall'app"
+          >
+            <LogOut size={20} />
+            <span className="hidden sm:inline">Esci</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -2614,30 +2625,56 @@ function PrintView({ quote, onBack }) {
 }
 
 // ==========================================
-// COMPONENTE LOGIN (Magic Link)
+// COMPONENTE LOGIN (Username & Password)
 // ==========================================
 function Login() {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showSignup, setShowSignup] = useState(false);
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('');
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: window.location.origin + window.location.pathname
-      }
+      password
     });
     setLoading(false);
     if (error) {
       setError(error.message);
+    }
+  };
+
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    if (signupPassword !== signupPasswordConfirm) {
+      setSignupError('Le password non corrispondono');
+      return;
+    }
+    setSignupLoading(true);
+    setSignupError('');
+    const { error } = await supabase.auth.signUp({
+      email,
+      password: signupPassword
+    });
+    setSignupLoading(false);
+    if (error) {
+      setSignupError(error.message);
     } else {
-      setSent(true);
+      setSignupError('');
+      setShowSignup(false);
+      setSignupPassword('');
+      setSignupPasswordConfirm('');
+      setError('Account creato! Accedi con le tue credenziali.');
+      setEmail('');
+      setPassword('');
     }
   };
 
@@ -2647,18 +2684,10 @@ function Login() {
         <div className="flex flex-col items-center mb-6">
           <img src={logoIMD} alt="IMD Logo" className="h-24 w-auto mb-4" />
           <h1 className="text-xl font-bold text-slate-900">Preventivi Eventi</h1>
-          <p className="text-slate-500 text-sm mt-1">Accedi per continuare</p>
+          <p className="text-slate-500 text-sm mt-1">{showSignup ? 'Crea un nuovo account' : 'Accedi con le tue credenziali'}</p>
         </div>
 
-        {sent ? (
-          <div className="text-center bg-green-50 border border-green-200 rounded-xl p-6">
-            <Mail size={32} className="text-green-600 mx-auto mb-3" />
-            <p className="text-slate-800 font-medium">Controlla la tua email!</p>
-            <p className="text-slate-500 text-sm mt-1">
-              Ti abbiamo inviato un link di accesso a <strong>{email}</strong>. Cliccalo per entrare.
-            </p>
-          </div>
-        ) : (
+        {!showSignup ? (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
@@ -2671,14 +2700,90 @@ function Login() {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Inserisci la tua password"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button
               type="submit"
               disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors disabled:opacity-70"
             >
-              <Mail size={18} />
-              {loading ? 'Invio in corso...' : 'Invia link di accesso'}
+              <LogIn size={18} />
+              {loading ? 'Accesso in corso...' : 'Accedi'}
+            </button>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+              <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-slate-500">oppure</span></div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setShowSignup(true); setError(''); }}
+              className="w-full px-4 py-3 border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-xl font-medium transition-colors"
+            >
+              Crea un nuovo account
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tuamail@esempio.com"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <input
+                type="password"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                placeholder="Almeno 6 caratteri"
+                required
+                minLength="6"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Conferma Password</label>
+              <input
+                type="password"
+                value={signupPasswordConfirm}
+                onChange={(e) => setSignupPasswordConfirm(e.target.value)}
+                placeholder="Ripeti la password"
+                required
+                minLength="6"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            {signupError && <p className="text-sm text-red-600">{signupError}</p>}
+            <button
+              type="submit"
+              disabled={signupLoading}
+              className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors disabled:opacity-70"
+            >
+              <Plus size={18} />
+              {signupLoading ? 'Creazione in corso...' : 'Crea account'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowSignup(false); setSignupError(''); setSignupPassword(''); setSignupPasswordConfirm(''); }}
+              className="w-full px-4 py-3 border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-xl font-medium transition-colors"
+            >
+              Torna al login
             </button>
           </form>
         )}
@@ -3062,10 +3167,29 @@ export default function App() {
       setAuthLoading(false);
       return;
     }
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setAuthLoading(false);
-    });
+
+    // Gestisce il redirect dal link email di Supabase
+    // Il link email contiene parametri tipo: #access_token=xxx&type=recovery&refresh_token=yyy
+    const handleAuthRedirect = async () => {
+      try {
+        // Supabase dovrebbe aver gia' processato i parametri, basta recuperare la sessione
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Errore autenticazione:', error);
+          setAuthLoading(false);
+          return;
+        }
+        setSession(session);
+      } catch (err) {
+        console.error('Errore durante il controllo della sessione:', err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    handleAuthRedirect();
+
+    // Listener per cambamenti di stato auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -3269,6 +3393,7 @@ export default function App() {
             onCreateNew={() => setCurrentView('create')}
             onPrint={handlePrint}
             onCreateContract={handleCreateContract}
+            onLogout={handleLogout}
           />
         ) : currentView === 'print' && selectedQuote ? (
           <PrintView 
