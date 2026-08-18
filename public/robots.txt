@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /gestionale-IMD/
+Disallow: /gestionale-IMD/private/
+
+Sitemap: /gestionale-IMD/sitemap.xml

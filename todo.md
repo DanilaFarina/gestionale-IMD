@@ -21,3 +21,7 @@ Per il prezzo, prendere il prezzo lordo come default, ma aggiustare con quello c
 # gestire le lingue
 # bug typing nel contratto
 # Se delle info vengono lasciate bianche non le scrivere per niente nel pdf
+
+NOME
+data_prev_nomecliente
+data_contr_nomecliente
