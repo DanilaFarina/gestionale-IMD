@@ -2363,7 +2363,7 @@ function ContractPDF_EN({ data, logoPng }) {
         <Text style={pdfStyles.clauseText}>2.4 The musical repertoire will be chosen autonomously by IMD; the Client may suggest preferred songs from the repertoire. </Text>
         {(c.strumentiFormazione || c.numeroMusicisti) ? (
           <Text style={pdfStyles.clauseText}>
-            2.5 The formation for the event will consist of {c.strumentiFormazione || 'instruments to be determined'}{c.numeroMusicisti ? ` (${c.numeroMusicisti} musicians)` : ''}.
+            2.5 The formation for the event will consist of: {c.strumentiFormazione || 'instruments to be determined'}{c.numeroMusicisti ? ` (${c.numeroMusicisti} musicians)` : ''}.
           </Text>
         ) : null}
         <Text style={pdfStyles.clauseText}>
