@@ -1803,24 +1803,37 @@ function ContractPDF({ data, logoPng }) {
   const saldo = Math.max(0, compenso - acconto);
   const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
   
-  // Inclusioni opzionali (gestite dai checkbox)
-  const includAudio = c.includAudio !== false;
-  const includLuci = c.includLuci !== false;
+  // Inclusioni / esclusioni opzionali (gestite dai checkbox)
+  const includAudio = c.includAudio === true;
+  const escludiAudio = c.escludiAudio === true;
+  const includLuci = c.includLuci === true;
+  const escludiLuci = c.escludiLuci === true;
   const includViaggio = c.includViaggio === true;
+  const escludiViaggio = c.escludiViaggio === true;
   const includAlloggio = c.includAlloggio === true;
+  const escludiAlloggio = c.escludiAlloggio === true;
   const includVitto = c.includVitto === true;
+  const escludiVitto = c.escludiVitto === true;
 
-  // Genera esclusioni dinamiche basate su inclusioni
+  // Genera liste dinamiche solo per gli elementi esplicitamente spuntati
+  const inclusioniBuild = [];
+  if (includAudio) inclusioniBuild.push("impianto audio");
+  if (includLuci) inclusioniBuild.push("impianto luci");
+  if (includViaggio) inclusioniBuild.push("rimborsi di viaggio e trasferta");
+  if (includAlloggio) inclusioniBuild.push("alloggio");
+  if (includVitto) inclusioniBuild.push("vitto e pasti per i musicisti");
+
   const esclusioniBuild = [];
-  if (!includAudio) esclusioniBuild.push("Impianto audio (fornito da service esterno a carico del Cliente)");
-  if (!includLuci) esclusioniBuild.push("Impianto luci (fornito da service esterno a carico del Cliente)");
-  if (!includViaggio) esclusioniBuild.push("Rimborsi di viaggio e trasferta");
-  if (!includAlloggio) esclusioniBuild.push("Costi di alloggio");
-  if (!includVitto) esclusioniBuild.push("Vitto e pasti per i musicisti");
+  if (escludiAudio) esclusioniBuild.push("impianto audio (fornito da service esterno a carico del Cliente)");
+  if (escludiLuci) esclusioniBuild.push("impianto luci (fornito da service esterno a carico del Cliente)");
+  if (escludiViaggio) esclusioniBuild.push("rimborsi di viaggio e trasferta");
+  if (escludiAlloggio) esclusioniBuild.push("costi di alloggio");
+  if (escludiVitto) esclusioniBuild.push("vitto e pasti per i musicisti");
   
   // Aggiungi esclusioni personalizzate se presenti
   if (c.esclusoAltro) esclusioniBuild.push(c.esclusoAltro);
   
+  const inclusioni = inclusioniBuild.join(", ");
   const esclusioni = esclusioniBuild.join(", ");
 
   const hasClientInfo = [c.nomeCliente, c.indirizzoCliente, c.cfCliente, c.pivaCliente, c.pecSdiCliente].some(Boolean);
@@ -1895,7 +1908,7 @@ function ContractPDF({ data, logoPng }) {
 
         {/* 2. Prestazioni */}
         <Text style={pdfStyles.sectionHeader}>2. PRESTAZIONI DI IMD</Text>
-        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {includVitto ? 'è incluso nel prezzo.' : 'è a carico del Cliente.'}</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {escludiVitto ? 'è a carico del Cliente.' : includVitto ? 'è incluso nel prezzo.' : 'è da concordare.'}</Text>
         <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del frontman {c.nomeFrontman || IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
         <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.</Text>
@@ -1906,13 +1919,19 @@ function ContractPDF({ data, logoPng }) {
         ) : null}
         <Text style={pdfStyles.clauseText}>
           2.6 {
-            includAudio && includLuci
-              ? 'IMD fornirà a proprie spese l’attrezzatura audio e luci necessarie.'
-              : includAudio
-                ? 'IMD fornirà a proprie spese l’attrezzatura audio; le luci saranno fornite da un service esterno a carico del Cliente.'
-                : includLuci
-                  ? 'L’attrezzatura audio sarà fornita da un service esterno a carico del Cliente; IMD fornirà a proprie spese l’attrezzatura luci.'
-                  : 'L’attrezzatura audio e luci saranno fornite da un service esterno a carico del Cliente.'
+            escludiAudio && escludiLuci
+              ? 'L’attrezzatura audio e luci saranno fornite da un service esterno a carico del Cliente.'
+              : escludiAudio
+                ? 'L’attrezzatura audio sarà fornita da un service esterno a carico del Cliente; le luci saranno invece fornite da IMD.'
+                : escludiLuci
+                  ? 'IMD fornirà a proprie spese l’attrezzatura audio; le luci saranno fornite da un service esterno a carico del Cliente.'
+                  : includAudio && includLuci
+                    ? 'IMD fornirà a proprie spese l’attrezzatura audio e luci necessarie.'
+                    : includAudio
+                      ? 'IMD fornirà a proprie spese l’attrezzatura audio.'
+                      : includLuci
+                        ? 'IMD fornirà a proprie spese l’attrezzatura luci.'
+                        : 'L’attrezzatura audio e le luci saranno da concordare tra le parti.'
           }
         </Text>
 
@@ -1934,9 +1953,9 @@ function ContractPDF({ data, logoPng }) {
         {isCausaleDataAvailable || c.causaleBonifico ? (
           <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «{c.causaleBonifico || `Consulenza musicale evento ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}».</Text>
         ) : null}
-        {esclusioni ? (
+        {(inclusioni || esclusioni) ? (
           <Text style={pdfStyles.clauseText}>
-            4.3 Sono esclusi dal prezzo: {esclusioni}.
+            4.3 {inclusioni ? `Sono inclusi nel prezzo: ${inclusioni}.` : ''}{esclusioni ? ` Sono esclusi dal prezzo: ${esclusioni}.` : ''}
           </Text>
         ) : null}
 
@@ -2268,12 +2287,17 @@ function ContractForm({ quote, onBack, onSave }) {
     numeroImpianti: fd.numImpianti ?? 0,
     numeroPasti: fd.numPasti || '',
     nomeFrontman: '', // nome del frontman della band
-    // Inclusioni opzionali (deriv dai dati del preventivo)
+    // Inclusioni / esclusioni opzionali: le esclusioni restano state espliciti dell'utente
     includAudio: Number(fd.numImpianti || 0) > 0,
+    escludiAudio: false,
     includLuci: true,
+    escludiLuci: false,
     includViaggio: Number(fd.distanzaKm || 0) > 0,
+    escludiViaggio: false,
     includAlloggio: Boolean(fd.usaPernottamento),
-    includVitto: false, // default: vitto a carico del cliente (esclusione)
+    escludiAlloggio: false,
+    includVitto: false,
+    escludiVitto: false,
     esclusoAltro: '', // testo delle esclusioni personalizzate
     // Economico (default: prezzo lordo, aggiustabile col concordato)
     compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
@@ -2450,16 +2474,31 @@ function ContractForm({ quote, onBack, onSave }) {
             {/* Esclusioni */}
             <div className="pt-4 border-t border-blue-300">
               <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-3">✗ Escluso dal Prezzo</p>
-              <div className="text-sm text-slate-700 mb-3 space-y-1">
-                {!data.includAudio && <p>• Impianto audio (fornito da service esterno)</p>}
-                {!data.includLuci && <p>• Impianto luci (fornito da service esterno)</p>}
-                {!data.includViaggio && <p>• Rimborsi di viaggio e trasferta</p>}
-                {!data.includAlloggio && <p>• Costi di alloggio</p>}
-                {!data.includVitto && <p>• Vitto e pasti per i musicisti</p>}
-                {!data.includAudio && !data.includLuci && !data.includViaggio && !data.includAlloggio && !data.includVitto && data.esclusoAltro === '' && (
-                  <p className="italic text-slate-400">Nessuna esclusione aggiunta</p>
-                )}
+              <div className="space-y-2 mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="escludiAudio" checked={data.escludiAudio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-red-600" />
+                  <span className="text-sm text-slate-700">Impianto Audio</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="escludiLuci" checked={data.escludiLuci} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-red-600" />
+                  <span className="text-sm text-slate-700">Impianto Luci</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="escludiViaggio" checked={data.escludiViaggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-red-600" />
+                  <span className="text-sm text-slate-700">Rimborso Trasferta/Viaggio</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="escludiAlloggio" checked={data.escludiAlloggio} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-red-600" />
+                  <span className="text-sm text-slate-700">Alloggio</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="escludiVitto" checked={data.escludiVitto} onChange={handle} className="w-4 h-4 rounded border-slate-300 text-red-600" />
+                  <span className="text-sm text-slate-700">Vitto (Pasti)</span>
+                </label>
               </div>
+              {!data.escludiAudio && !data.escludiLuci && !data.escludiViaggio && !data.escludiAlloggio && !data.escludiVitto && data.esclusoAltro === '' && (
+                <p className="italic text-slate-400 text-sm">Nessuna esclusione aggiunta</p>
+              )}
               <label className="block text-xs font-medium text-slate-600 mb-2">Esclusioni Personalizzate (Altro):</label>
               <textarea
                 name="esclusoAltro"
