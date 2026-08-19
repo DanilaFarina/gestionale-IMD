@@ -455,7 +455,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     percExtraSconto: 5,
     usaMaggAgenzia: false,
     percMaggAgenzia: 20,
-    sconto: 0.65
+    sconto: 0.65,
+    mostraIva: true
   };
   const [formData, setFormData] = useState(initialData ? { ...defaults, ...initialData } : defaults);
 
@@ -1459,8 +1460,24 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   <span>+ € {Math.round(calc.commissioneFTMVal).toLocaleString('it-IT')}</span>
                 </div>
               )}
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="mostraIva"
+                  checked={formData.mostraIva}
+                  onChange={handleChange}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Mostra "+ IVA 22%" nei PDF
+                </span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1 ml-6">
+                Se disattivato, nel PDF verrà mostrato solo il prezzo.
+              </p>
             </div>
-
             {/* TOTALI FINALI */}
             <div className="bg-slate-900 rounded-xl p-4 border border-slate-700 space-y-4">
               <div>
@@ -1616,7 +1633,7 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
   if (Number(fd.numImpianti) > 0) inclusi.push(`Impianto/i audio professionale/i`);
   if (Number(fd.costoDj) > 0) inclusi.push('DJ Set');
   if (fd.usaBraniRichiesta) inclusi.push('Arrangiamento e studio di brani su richiesta');
-
+  const ivaLabel = fd.mostraIva ? ' + IVA 22%' : '';
   const esclusioni = [
     "Diritti d'Autore (S.I.A.E.) \u2013 a carico del Cliente (entro il giorno precedente l'evento)",
     `Vitto \u2013 pasto a sedere per n. ${fd.numPasti || ''} collaboratori`,
@@ -1692,12 +1709,12 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
           <View style={pdfStyles.ecoBox} wrap={false}>
             <View style={pdfStyles.ecoRow}>
               <Text style={pdfStyles.ecoLabel}>Prezzo Lordo</Text>
-              <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + IVA 22%</Text>
+              <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} {ivaLabel}</Text>
             </View>
             <View style={pdfStyles.ecoDivider} />
             <View style={pdfStyles.ecoRow}>
               <Text style={pdfStyles.ecoLabelStrong}>Sconto per Te</Text>
-              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} + IVA 22%</Text>
+              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} {ivaLabel}</Text>
             </View>
             {acconto > 0 ? (
               <>
@@ -1799,6 +1816,7 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
 function ContractPDF({ data, logoPng }) {
   const c = data;
   const compenso = Number(c.compensoTotale || 0);
+  const ivaLabel = c.mostraIva ? ' + IVA' : '';
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
   const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
@@ -1943,9 +1961,9 @@ function ContractPDF({ data, logoPng }) {
 
         {/* 4. Corrispettivo */}
         <Text style={pdfStyles.sectionHeader}>4. CORRISPETTIVO E SPESE</Text>
-        <Text style={pdfStyles.clauseText}>4.1 Il compenso totale a carico del Cliente è di € {compenso.toLocaleString('it-IT')} + IVA, così suddiviso:</Text>
+        <Text style={pdfStyles.clauseText}>4.1 Il compenso totale a carico del Cliente è di € {compenso.toLocaleString('it-IT')} {ivaLabel}, così suddiviso:</Text>
         {(acconto || c.giorniAcconto) ? (
-          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Acconto (caparra confirmatoria/penitenziale): € ${acconto.toLocaleString('it-IT')} + IVA alla firma del contratto` : 'Acconto:'}{c.giorniAcconto ? `, e comunque entro ${c.giorniAcconto} giorni lavorativi dalla sottoscrizione.` : '.'}</Text></View>
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Acconto (caparra confirmatoria/penitenziale): € ${acconto.toLocaleString('it-IT')} alla firma del contratto` : 'Acconto:'}{c.giorniAcconto ? `, e comunque entro ${c.giorniAcconto} giorni lavorativi dalla sottoscrizione.` : '.'}</Text></View>
         ) : null}
         {(saldo || c.tempisticaSaldo) ? (
           <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Saldo: € {saldo.toLocaleString('it-IT')} + IVA da corrispondersi{c.tempisticaSaldo ? ` entro ${c.tempisticaSaldo}` : ''}.</Text></View>
@@ -2149,12 +2167,12 @@ function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, 
           <View style={pdfStyles.ecoBox} wrap={false}>
             <View style={pdfStyles.ecoRow}>
               <Text style={pdfStyles.ecoLabel}>Gross Price</Text>
-              <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} + VAT 22%</Text>
+              <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')}{ivaLabel}</Text>
             </View>
             <View style={pdfStyles.ecoDivider} />
             <View style={pdfStyles.ecoRow}>
               <Text style={pdfStyles.ecoLabelStrong}>Discount for You</Text>
-              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} + VAT 22%</Text>
+              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')}{ivaLabel}</Text>
             </View>
             {acconto > 0 ? (
               <>
@@ -2780,6 +2798,7 @@ function ContractForm({ quote, onBack, onSave }) {
     compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
     importoAcconto: fd.acconto || 0,
     giorniAcconto: 5,
+    mostraIva: true,
     tempisticaSaldo: "il giorno dell'evento",
     causaleBonifico: '',
     // Sovrascrivi con i dati del contratto gia' salvati (se presenti)
@@ -3026,6 +3045,18 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Giorni per Acconto" name="giorniAcconto" value={data.giorniAcconto} onChange={handle} opts={{ type: 'number' }} />
           <ContractField label="Tempistica Saldo" name="tempisticaSaldo" value={data.tempisticaSaldo} onChange={handle} opts={{ full: true }} />
           <ContractField label="Causale Bonifico" name="causaleBonifico" value={data.causaleBonifico} onChange={handle} opts={{ full: true, multiline: true, rows: 3, placeholder: 'es. Consulenza musicale evento [data] - [cliente]' }} />
+          <label className="flex items-center gap-2 cursor-pointer md:col-span-2">
+            <input
+              type="checkbox"
+              name="mostraIva"
+              checked={data.mostraIva}
+              onChange={handle}
+              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-slate-700">
+              Mostra "+ IVA" nel contratto PDF
+            </span>
+          </label>
         </ContractSection>
 
         <p className="text-xs text-slate-500">
