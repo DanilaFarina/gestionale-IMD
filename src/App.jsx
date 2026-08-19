@@ -456,7 +456,8 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     usaMaggAgenzia: false,
     percMaggAgenzia: 20,
     sconto: 0.65,
-    mostraIva: true
+    mostraIva: true,
+    mostraScontoPerTe: true
   };
   const [formData, setFormData] = useState(initialData ? { ...defaults, ...initialData } : defaults);
 
@@ -1474,9 +1475,18 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                   Mostra "+ IVA 22%" nei PDF
                 </span>
               </label>
-              <p className="text-xs text-slate-500 mt-1 ml-6">
-                Se disattivato, nel PDF verrà mostrato solo il prezzo.
-              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="mostraScontoPerTe"
+                  checked={formData.mostraScontoPerTe}
+                  onChange={handleChange}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Mostra "Sconto per Te" nel PDF
+                </span>
+              </label>
             </div>
             {/* TOTALI FINALI */}
             <div className="bg-slate-900 rounded-xl p-4 border border-slate-700 space-y-4">
@@ -1711,11 +1721,15 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
               <Text style={pdfStyles.ecoLabel}>Prezzo Lordo</Text>
               <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')} {ivaLabel}</Text>
             </View>
-            <View style={pdfStyles.ecoDivider} />
-            <View style={pdfStyles.ecoRow}>
-              <Text style={pdfStyles.ecoLabelStrong}>Sconto per Te</Text>
-              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} {ivaLabel}</Text>
-            </View>
+            {fd.mostraScontoPerTe && (
+              <>
+                <View style={pdfStyles.ecoDivider} />
+                <View style={pdfStyles.ecoRow}>
+                  <Text style={pdfStyles.ecoLabelStrong}>Sconto per Te</Text>
+                  <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')} {ivaLabel}</Text>
+                </View>
+              </>
+            )}
             {acconto > 0 ? (
               <>
                 <View style={pdfStyles.ecoDivider} />
