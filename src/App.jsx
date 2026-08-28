@@ -2663,18 +2663,24 @@ function Login() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: window.location.origin + window.location.pathname
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: window.location.origin + window.location.pathname
+        }
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        setSent(true);
       }
-    });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-    } else {
-      setSent(true);
+    } catch (err) {
+      setError('Errore di rete. Verifica la connessione e riprova.');
+      console.error('Login network error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -3132,18 +3138,23 @@ export default function App() {
       setQuotes(devLoad());
       return;
     }
-    const { data, error } = await supabase
-      .from('quotes')
-      .select('*')
-      .order('created_at', { ascending: true });
-    if (error) {
-      console.error('Errore caricamento preventivi:', error);
-      return;
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('quotes')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) {
+        console.error('Errore caricamento preventivi:', error);
+        return;
+      }
+      setQuotes(data.map(({ form_data, created_at, ...rest }) => ({
+        ...rest,
+        formData: form_data
+      })));
+    } catch (err) {
+      console.error('Errore di rete caricamento preventivi:', err);
     }
-    setQuotes(data.map(({ form_data, created_at, ...rest }) => ({
-      ...rest,
-      formData: form_data
-    })));
   }, []);
 
   useEffect(() => {
