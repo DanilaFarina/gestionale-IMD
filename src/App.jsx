@@ -15,7 +15,7 @@ import garamondSemibold from '@fontsource/eb-garamond/files/eb-garamond-latin-60
 import garamondBold from '@fontsource/eb-garamond/files/eb-garamond-latin-700-normal.woff';
 import garamondExtrabold from '@fontsource/eb-garamond/files/eb-garamond-latin-800-normal.woff';
 import garamondItalic from '@fontsource/eb-garamond/files/eb-garamond-latin-400-italic.woff';
-import { supabase } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { 
   Plus, 
   Edit, 
@@ -2693,6 +2693,13 @@ function Login() {
           <p className="text-slate-500 text-sm mt-1">Accedi per continuare</p>
         </div>
 
+        {!isSupabaseConfigured && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+            <p className="text-amber-800 text-sm font-medium">⚠️ Connessione al server non configurata</p>
+            <p className="text-amber-600 text-xs mt-1">Le variabili di ambiente non sono state trovate nel build.</p>
+          </div>
+        )}
+
         {sent ? (
           <div className="text-center bg-green-50 border border-green-200 rounded-xl p-6">
             <Mail size={32} className="text-green-600 mx-auto mb-3" />
@@ -3310,6 +3317,21 @@ export default function App() {
             <p className="text-slate-500 text-sm mt-2">
               Mancano le variabili Supabase (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
             </p>
+            <button
+              type="button"
+              onClick={async () => {
+                if ('serviceWorker' in navigator) {
+                  const regs = await navigator.serviceWorker.getRegistrations();
+                  for (const r of regs) await r.unregister();
+                }
+                const keys = await caches.keys();
+                for (const k of keys) await caches.delete(k);
+                window.location.reload();
+              }}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+            >
+              Pulisci cache e ricarica
+            </button>
           </div>
         </div>
       );
