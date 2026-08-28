@@ -2097,6 +2097,7 @@ Qualora l&apos;esecuzione del servizio divenga definitivamente impossibile per c
 function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const ivaLabel = fd.mostraIva ? ' + VAT 22%' : '';
 
   const inclusi = ['Musical performance as per program'];
   if (fd.usaCoordinator) inclusi.push('Consultation, direction and artistic coordination');
