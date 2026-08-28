@@ -1,9 +1,14 @@
 # Lanciare in locale
 npm run dev
-# Deployare
-npm run deploy
 
-# Deployato su git hub
+# Build locale
+npm run build
+
+# Deploy
+Il deploy su GitHub Pages parte automaticamente tramite GitHub Actions a ogni push su `main`.
+Se necessario puoi avviarlo anche manualmente dalla tab Actions con il workflow `Deploy to GitHub Pages`.
+
+# Deployato su GitHub
 Per accedere usare questo link https://danilafarina.github.io/gestionale-IMD/
 
 # Creato database
