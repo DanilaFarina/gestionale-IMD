@@ -15,7 +15,7 @@ import garamondSemibold from '@fontsource/eb-garamond/files/eb-garamond-latin-60
 import garamondBold from '@fontsource/eb-garamond/files/eb-garamond-latin-700-normal.woff';
 import garamondExtrabold from '@fontsource/eb-garamond/files/eb-garamond-latin-800-normal.woff';
 import garamondItalic from '@fontsource/eb-garamond/files/eb-garamond-latin-400-italic.woff';
-import { supabase } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { 
   Plus, 
   Edit, 
@@ -2657,6 +2657,11 @@ function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!supabase) {
+      setLoading(false);
+      setError('Configurazione autenticazione mancante. Contatta un amministratore.');
+      return;
+    }
     setLoading(true);
     setError('');
     const { error } = await supabase.auth.signInWithOtp({
@@ -3108,6 +3113,10 @@ export default function App() {
       setAuthLoading(false);
       return;
     }
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
@@ -3283,6 +3292,18 @@ export default function App() {
     );
   }
   if (!import.meta.env.DEV && !session) {
+    if (!isSupabaseConfigured) {
+      return (
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 w-full max-w-md text-center">
+            <p className="text-red-700 font-medium">Configurazione accesso non disponibile</p>
+            <p className="text-slate-500 text-sm mt-2">
+              Mancano le variabili Supabase (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
+            </p>
+          </div>
+        </div>
+      );
+    }
     return <Login />;
   }
 
