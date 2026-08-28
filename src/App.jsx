@@ -2657,8 +2657,12 @@ function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    if (!supabase) {
+      setError('Configurazione autenticazione mancante. Contatta un amministratore.');
+      return;
+    }
+    setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -3108,6 +3112,10 @@ export default function App() {
       setAuthLoading(false);
       return;
     }
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
@@ -3283,6 +3291,18 @@ export default function App() {
     );
   }
   if (!import.meta.env.DEV && !session) {
+    if (!supabase) {
+      return (
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 w-full max-w-md text-center">
+            <p className="text-red-700 font-medium">Configurazione accesso non disponibile</p>
+            <p className="text-slate-500 text-sm mt-2">
+              Mancano le variabili Supabase (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
+            </p>
+          </div>
+        </div>
+      );
+    }
     return <Login />;
   }
 
