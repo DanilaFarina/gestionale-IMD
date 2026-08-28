@@ -2659,7 +2659,6 @@ function Login() {
     e.preventDefault();
     setError('');
     if (!supabase) {
-      setLoading(false);
       setError('Configurazione autenticazione mancante. Contatta un amministratore.');
       return;
     }
