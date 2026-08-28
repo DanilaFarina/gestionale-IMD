@@ -3113,7 +3113,7 @@ export default function App() {
       setAuthLoading(false);
       return;
     }
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured) {
       setAuthLoading(false);
       return;
     }
