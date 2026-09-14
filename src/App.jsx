@@ -39,7 +39,8 @@ import {
   Users,
   LogOut,
   Mail,
-  FileText
+  FileText,
+  Copy
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
@@ -119,21 +120,46 @@ function formatMultiplier(value) {
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
-function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew, onPrint, onCreateContract }) {
+const getQuoteGroupId = (quote) => quote.formData?._quoteGroupId || quote.id;
+const getQuoteVersion = (quote) => Number(quote.formData?._quoteVersion) || 1;
+const getQuoteCreatedAt = (quote) => quote.formData?._createdAt || '';
+
+const fileNamePart = (value, fallback) => String(value || fallback)
+  .trim()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9_-]+/g, '_')
+  .replace(/^_+|_+$/g, '') || fallback;
+
+const fileDatePart = (value) => {
+  const date = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : fileNamePart(date, 'SenzaData');
+};
+
+const buildPdfFileName = (type, client, date, language = '') =>
+  `${type}_${fileNamePart(client, 'Cliente')}_${fileDatePart(date)}${language ? `_${language}` : ''}.pdf`;
+
+function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate, onCreateNew, onPrint, onCreateContract }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
+  const sortedQuotes = [...quotes].sort((a, b) => {
+    const dateA = Date.parse(getQuoteCreatedAt(a)) || 0;
+    const dateB = Date.parse(getQuoteCreatedAt(b)) || 0;
+    return dateB - dateA;
+  });
 
-  const filteredQuotes = quotes.filter(quote => {
+  const filteredQuotes = sortedQuotes.filter(quote => {
     const matchesSearch = quote.client.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           quote.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          quote.id.toLowerCase().includes(searchTerm.toLowerCase());
+                          getQuoteGroupId(quote).toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'Tutti' || quote.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
 
-  const totalApproved = quotes.filter(q => q.status === 'Approvato').length;
-  const totalPending = quotes.filter(q => q.status === 'In attesa').length;
+  const latestByGroup = Array.from(new Map(sortedQuotes.map(quote => [getQuoteGroupId(quote), quote])).values());
+  const totalApproved = latestByGroup.filter(q => q.status === 'Approvato').length;
+  const totalPending = latestByGroup.filter(q => q.status === 'In attesa').length;
 
   const getRowHighlight = (status) => {
     if (status === 'Approvato') return 'bg-green-50/30';
@@ -167,7 +193,7 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew
         <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500">Preventivi Attivi</p>
-            <p className="text-lg font-bold text-slate-800 mt-0.5">{quotes.filter(q => q.status !== 'Archiviato').length}</p>
+            <p className="text-lg font-bold text-slate-800 mt-0.5">{latestByGroup.filter(q => q.status !== 'Archiviato').length}</p>
           </div>
           <div className="h-9 w-9 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
             <Music size={18} />
@@ -245,6 +271,7 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew
                     <td className="px-6 py-4">
                       <div className="font-semibold text-slate-900">{quote.client}</div>
                       <div className="flex items-center text-slate-500 text-xs mt-1 gap-3">
+                        <span>ID {getQuoteGroupId(quote)} · v{getQuoteVersion(quote)}</span>
                         <span className="flex items-center gap-1"><Clock size={12} /> {quote.date}</span>
                         <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location} ({quote.type})</span>
                       </div>
@@ -299,6 +326,14 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onCreateNew
                           className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                         >
                           <Edit size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDuplicate(quote.id)}
+                          title="Duplica Preventivo"
+                          className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-colors"
+                        >
+                          <Copy size={18} />
                         </button>
                         {quote.status !== 'Archiviato' && (
                           <button
@@ -719,18 +754,28 @@ function QuoteForm({ onCancel, onSave, initialData }) {
     };
   }, [formData]);
 
-  const buildQuote = () => ({
-    id: formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-    client: formData.client || 'Cliente Sconosciuto',
-    type: formData.type,
-    date: formData.date || 'Da definire',
-    location: formData.address || 'Da definire',
-    total: calc.prezzoFinale,
-    prezzoLordo: calc.prezzoLordo,
-    scontoPerTe: calc.scontoPerTe,
-    status: formData._editStatus || 'In attesa',
-    formData: { ...formData }
-  });
+  const buildQuote = () => {
+    const id = formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+    const quoteGroupId = formData._quoteGroupId || id;
+
+    return {
+      id,
+      client: formData.client || 'Cliente Sconosciuto',
+      type: formData.type,
+      date: formData.date || 'Da definire',
+      location: formData.address || 'Da definire',
+      total: calc.prezzoFinale,
+      prezzoLordo: calc.prezzoLordo,
+      scontoPerTe: calc.scontoPerTe,
+      status: formData._editStatus || 'In attesa',
+      formData: {
+        ...formData,
+        _quoteGroupId: quoteGroupId,
+        _quoteVersion: Number(formData._quoteVersion) || 1,
+        _createdAt: formData._createdAt || new Date().toISOString()
+      }
+    };
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -762,7 +807,7 @@ function QuoteForm({ onCancel, onSave, initialData }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Preventivo_${quote.id}.pdf`;
+      a.download = buildPdfFileName('Preventivo', quote.client, quote.date);
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2583,7 +2628,7 @@ function PrintView({ quote, onBack }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Preventivo_${quote.id}_${language}.pdf`;
+      a.download = buildPdfFileName('Preventivo', quote.client, quote.date, language);
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2885,7 +2930,12 @@ function ContractForm({ quote, onBack, onSave }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Contratto_${quote.id}_${contractLanguage}.pdf`;
+      a.download = buildPdfFileName(
+        'Contratto',
+        data.nomeCliente || quote.client,
+        data.dataEvento || quote.date,
+        contractLanguage
+      );
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -3157,7 +3207,10 @@ export default function App() {
       }
       setQuotes(data.map(({ form_data, created_at, ...rest }) => ({
         ...rest,
-        formData: form_data
+        formData: {
+          ...(form_data || {}),
+          _createdAt: created_at || form_data?._createdAt || ''
+        }
       })));
     } catch (err) {
       console.error('Errore di rete caricamento preventivi:', err);
@@ -3234,6 +3287,46 @@ export default function App() {
     } else {
       alert('Dati del form non disponibili per questo preventivo.');
     }
+  };
+
+  const handleDuplicate = async (id) => {
+    const quote = quotes.find(q => q.id === id);
+    if (!quote?.formData) {
+      alert('Dati del preventivo non disponibili per la duplicazione.');
+      return;
+    }
+
+    const duplicate = {
+      ...quote,
+      id: `PRV-${Date.now().toString(36).toUpperCase()}`,
+      status: 'In attesa',
+      formData: {
+        ...quote.formData,
+        _quoteGroupId: getQuoteGroupId(quote),
+        _quoteVersion: getQuoteVersion(quote) + 1,
+        _createdAt: new Date().toISOString()
+      }
+    };
+
+    if (import.meta.env.DEV) {
+      const updated = [...quotes, duplicate];
+      setQuotes(updated);
+      devSave(updated);
+      setSelectedQuote(duplicate);
+      setCurrentView('edit');
+      return;
+    }
+
+    const { formData, ...rest } = duplicate;
+    const { error } = await supabase.from('quotes').insert({ ...rest, form_data: formData });
+    if (error) {
+      alert('Errore nella duplicazione: ' + error.message);
+      return;
+    }
+
+    setQuotes(prev => [...prev, duplicate]);
+    setSelectedQuote(duplicate);
+    setCurrentView('edit');
   };
 
   const handleSaveNewQuote = async (newQuote) => {
@@ -3365,6 +3458,7 @@ export default function App() {
             onArchive={handleArchive}
             onDelete={handleDelete}
             onEdit={handleEdit}
+            onDuplicate={handleDuplicate}
             onCreateNew={() => setCurrentView('create')}
             onPrint={handlePrint}
             onCreateContract={handleCreateContract}
