@@ -40,7 +40,11 @@ import {
   LogOut,
   Mail,
   FileText,
-  Copy
+  Copy,
+  BarChart3,
+  TrendingUp,
+  Wallet,
+  CalendarDays
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
@@ -139,7 +143,7 @@ const fileDatePart = (value) => {
 const buildPdfFileName = (type, client, date, language = '') =>
   `${type}_${fileNamePart(client, 'Cliente')}_${fileDatePart(date)}${language ? `_${language}` : ''}.pdf`;
 
-function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate, onCreateNew, onPrint, onCreateContract }) {
+function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate, onCreateNew, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
   const sortedQuotes = [...quotes].sort((a, b) => {
@@ -156,10 +160,6 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
     
     return matchesSearch && matchesStatus;
   });
-
-  const latestByGroup = Array.from(new Map(sortedQuotes.map(quote => [getQuoteGroupId(quote), quote])).values());
-  const totalApproved = latestByGroup.filter(q => q.status === 'Approvato').length;
-  const totalPending = latestByGroup.filter(q => q.status === 'In attesa').length;
 
   const getRowHighlight = (status) => {
     if (status === 'Approvato') return 'bg-green-50/30';
@@ -178,44 +178,31 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
             <p className="text-slate-500 mt-0.5 text-sm">Gestisci le tue richieste, calcola i cachet e chiudi le date.</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onCreateNew}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
-        >
-          <Plus size={20} />
-          Crea Nuovo Preventivo
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">Preventivi Attivi</p>
-            <p className="text-lg font-bold text-slate-800 mt-0.5">{latestByGroup.filter(q => q.status !== 'Archiviato').length}</p>
-          </div>
-          <div className="h-9 w-9 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-            <Music size={18} />
-          </div>
-        </div>
-        <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">In Attesa di Risposta</p>
-            <p className="text-lg font-bold text-slate-800 mt-0.5">{totalPending}</p>
-          </div>
-          <div className="h-9 w-9 bg-yellow-50 rounded-full flex items-center justify-center text-yellow-600">
-            <Clock size={18} />
-          </div>
-        </div>
-        <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">Approvati (Entrati)</p>
-            <p className="text-lg font-bold text-green-600 mt-0.5">{totalApproved}</p>
-          </div>
-          <div className="h-9 w-9 bg-green-50 rounded-full flex items-center justify-center text-green-600">
-            <CheckCircle size={18} />
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenPayments}
+            className="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors"
+          >
+            <Wallet size={20} />
+            Pagamenti
+          </button>
+          <button
+            type="button"
+            onClick={onOpenAnalytics}
+            className="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors"
+          >
+            <BarChart3 size={20} />
+            Analisi
+          </button>
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
+          >
+            <Plus size={20} />
+            Crea Nuovo Preventivo
+          </button>
         </div>
       </div>
 
@@ -1899,6 +1886,7 @@ function ContractPDF({ data, logoPng }) {
   if (includViaggio) inclusioniBuild.push("rimborsi di viaggio e trasferta");
   if (includAlloggio) inclusioniBuild.push("alloggio");
   if (includVitto) inclusioniBuild.push("vitto e pasti per i musicisti");
+  if (c.inclusoAltro) inclusioniBuild.push(c.inclusoAltro);
 
   const esclusioniBuild = [];
   if (escludiAudio) esclusioniBuild.push("impianto audio (fornito da service esterno a carico del Cliente)");
@@ -2355,6 +2343,7 @@ function ContractPDF_EN({ data, logoPng }) {
   if (includViaggio) inclusioniBuild.push("travel and transportation reimbursement");
   if (includAlloggio) inclusioniBuild.push("accommodation");
   if (includVitto) inclusioniBuild.push("meals for musicians");
+  if (c.inclusoAltro) inclusioniBuild.push(c.inclusoAltro);
 
   const esclusioniBuild = [];
   if (escludiAudio) esclusioniBuild.push("audio equipment (provided by external service at Client's expense)");
@@ -2870,6 +2859,7 @@ function ContractForm({ quote, onBack, onSave }) {
     escludiAlloggio: false,
     includVitto: false,
     escludiVitto: false,
+    inclusoAltro: '', // testo delle inclusioni personalizzate
     esclusoAltro: '', // testo delle esclusioni personalizzate
     // Economico (default: prezzo lordo, aggiustabile col concordato)
     compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
@@ -2902,7 +2892,10 @@ function ContractForm({ quote, onBack, onSave }) {
     setSaving(true);
     setSavedOk(false);
     try {
-      await onSave(quote.id, data);
+      await onSave(quote.id, {
+        ...data,
+        scontoPerTe: roundPrice(Number(data.compensoTotale || 0) * Number(fd.sconto || 0.65)),
+      });
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 2500);
     } catch (err) {
@@ -3074,6 +3067,15 @@ function ContractForm({ quote, onBack, onSave }) {
                   <span className="text-sm text-slate-700">Vitto (Pasti)</span>
                 </label>
               </div>
+              <label className="block text-xs font-medium text-slate-600 mt-3 mb-2">Altro:</label>
+              <textarea
+                name="inclusoAltro"
+                value={data.inclusoAltro}
+                onChange={handle}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="2"
+                placeholder="es. servizio aggiuntivo, trasferimento, ecc."
+              />
             </div>
 
             {/* Esclusioni */}
@@ -3159,6 +3161,140 @@ function ContractForm({ quote, onBack, onSave }) {
 const DEV_KEY = 'imd_quotes_dev';
 const devLoad = () => { try { return JSON.parse(localStorage.getItem(DEV_KEY) || '[]'); } catch { return []; } };
 const devSave = (q) => localStorage.setItem(DEV_KEY, JSON.stringify(q));
+
+const paymentRowId = () => `payment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+const createPaymentRow = (role = 'Musicista', base = 0) => ({
+  id: paymentRowId(),
+  role,
+  name: '',
+  base: Number(base) || 0,
+  additions: [],
+});
+
+const createDefaultPayments = (quote) => {
+  const formData = quote.formData || {};
+  const musicianCount = Math.max(0, Number(formData.numMusicisti) || 0);
+  const rows = Array.from({ length: musicianCount }, () => createPaymentRow('Musicista', formData.cachetMusicista));
+  if (formData.usaCoordinator) rows.push(createPaymentRow('Event Coordinator', formData.costoCoordinator));
+  if (Number(formData.numImpianti) > 0 && Number(formData.costoImpianto) > 0) {
+    rows.push(createPaymentRow('Service', Number(formData.numImpianti) * Number(formData.costoImpianto)));
+  }
+  return rows.length ? rows : [createPaymentRow()];
+};
+
+const getPaymentTotal = (payment) => Number(payment.base || 0) + (payment.additions || []).reduce((sum, addition) => sum + Number(addition.amount || 0), 0);
+
+function MusicianPayments({ quotes, onBack, onSave }) {
+  const payableQuotes = useMemo(() => quotes
+    .filter(quote => quote.status === 'Approvato')
+    .sort((first, second) => String(first.date || '').localeCompare(String(second.date || ''))), [quotes]);
+  const [selectedId, setSelectedId] = useState(() => payableQuotes[0]?.id || '');
+  const selectedQuote = payableQuotes.find(quote => quote.id === selectedId) || null;
+  const [payments, setPayments] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
+
+  useEffect(() => {
+    if (!selectedQuote) {
+      setPayments([]);
+      return;
+    }
+    const savedPayments = selectedQuote.formData?.musicianPayments;
+    setPayments(Array.isArray(savedPayments) && savedPayments.length ? savedPayments : createDefaultPayments(selectedQuote));
+    setSavedOk(false);
+  }, [selectedQuote]);
+
+  const updatePayment = (paymentId, field, value) => {
+    setPayments(current => current.map(payment => payment.id === paymentId ? { ...payment, [field]: field === 'base' ? Number(value) || 0 : value } : payment));
+  };
+
+  const addAddition = (paymentId) => {
+    setPayments(current => current.map(payment => payment.id === paymentId ? {
+      ...payment,
+      additions: [...(payment.additions || []), { id: paymentRowId(), type: 'Generico', label: '', amount: 0 }],
+    } : payment));
+  };
+
+  const updateAddition = (paymentId, additionId, field, value) => {
+    setPayments(current => current.map(payment => payment.id === paymentId ? {
+      ...payment,
+      additions: (payment.additions || []).map(addition => addition.id === additionId ? { ...addition, [field]: field === 'amount' ? Number(value) || 0 : value } : addition),
+    } : payment));
+  };
+
+  const removeAddition = (paymentId, additionId) => {
+    setPayments(current => current.map(payment => payment.id === paymentId ? { ...payment, additions: payment.additions.filter(addition => addition.id !== additionId) } : payment));
+  };
+
+  const totalPayments = payments.reduce((sum, payment) => sum + getPaymentTotal(payment), 0);
+  const contractNet = selectedQuote?.formData?.contractData?.scontoPerTe ?? selectedQuote?.scontoPerTe ?? 0;
+  const remaining = Number(contractNet || 0) - totalPayments;
+
+  const handleSave = async () => {
+    if (!selectedQuote) return;
+    setSaving(true);
+    setSavedOk(false);
+    try {
+      await onSave(selectedQuote.id, payments);
+      setSavedOk(true);
+    } catch (error) {
+      console.error('Errore salvataggio pagamenti:', error);
+      alert(`Errore nel salvataggio dei pagamenti: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={onBack} title="Torna alla dashboard" className="p-2 hover:bg-slate-200 rounded-full transition-colors"><ArrowLeft size={22} className="text-slate-600" /></button>
+          <div><h1 className="text-2xl font-bold tracking-tight text-slate-900">Pagamenti musicisti</h1><p className="text-slate-500 text-sm mt-0.5">Assegna compensi e maggiorazioni per ogni evento approvato.</p></div>
+        </div>
+        {selectedQuote && <button type="button" onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors disabled:opacity-70"><Save size={18} />{saving ? 'Salvataggio...' : savedOk ? 'Pagamenti salvati' : 'Salva pagamenti'}</button>}
+      </div>
+
+      {payableQuotes.length ? <>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <label className="block text-sm font-medium text-slate-700 mb-2">Evento</label>
+          <select value={selectedId} onChange={event => setSelectedId(event.target.value)} className="w-full max-w-2xl px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500">
+            {payableQuotes.map(quote => <option key={quote.id} value={quote.id}>{quote.date || 'Data da definire'} - {quote.client} - {quote.location}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"><p className="text-sm text-slate-500">Da pagare</p><p className="text-2xl font-bold text-slate-900 mt-2">{formatEuro(totalPayments)}</p><p className="text-xs text-slate-500 mt-1">somma di basi e aggiunte</p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"><p className="text-sm text-slate-500">Netto contratto</p><p className="text-2xl font-bold text-slate-900 mt-2">{formatEuro(contractNet)}</p><p className="text-xs text-slate-500 mt-1">Sconto per Te</p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"><p className="text-sm text-slate-500">Residuo netto</p><p className={`text-2xl font-bold mt-2 ${remaining >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatEuro(remaining)}</p><p className="text-xs text-slate-500 mt-1">dopo i pagamenti</p></div>
+        </div>
+
+        <div className="space-y-4">
+          {payments.map((payment, index) => <div key={payment.id} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="p-5 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_auto] gap-4 items-end">
+              <div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Ruolo</label><select value={payment.role} onChange={event => updatePayment(payment.id, 'role', event.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"><option>Musicista</option><option>Event Coordinator</option><option>Service</option><option>Altro</option></select></div>
+              <div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome</label><input value={payment.name} onChange={event => updatePayment(payment.id, 'name', event.target.value)} placeholder="Nome e cognome" className="w-full px-3 py-2 border border-slate-300 rounded-lg" /></div>
+              <div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Compenso base</label><input type="number" min="0" value={payment.base} onChange={event => updatePayment(payment.id, 'base', event.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" /></div>
+              <button type="button" onClick={() => setPayments(current => current.filter(item => item.id !== payment.id))} title={`Rimuovi riga ${index + 1}`} className="p-2.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+            </div>
+            <div className="bg-slate-50 border-t border-slate-200 px-5 py-4">
+              <div className="flex items-center justify-between gap-4 mb-3"><p className="text-sm font-medium text-slate-700">Aggiunte al compenso</p><button type="button" onClick={() => addAddition(payment.id)} className="flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"><Plus size={16} /> Aggiunta</button></div>
+              {(payment.additions || []).length ? <div className="space-y-2">{payment.additions.map(addition => <div key={addition.id} className="grid grid-cols-1 sm:grid-cols-[180px_1fr_140px_auto] gap-2 items-center">
+                <select value={addition.type} onChange={event => updateAddition(payment.id, addition.id, 'type', event.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm"><option>Event Coordinator</option><option>Service</option><option>Generico</option></select>
+                <input value={addition.label} onChange={event => updateAddition(payment.id, addition.id, 'label', event.target.value)} placeholder="Descrizione (facoltativa)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="number" min="0" value={addition.amount} onChange={event => updateAddition(payment.id, addition.id, 'amount', event.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <button type="button" onClick={() => removeAddition(payment.id, addition.id)} title="Rimuovi aggiunta" className="p-2 text-red-600 hover:bg-red-100 rounded-lg"><XCircle size={18} /></button>
+              </div>)}</div> : <p className="text-sm text-slate-400">Nessuna aggiunta per questo ruolo.</p>}
+            </div>
+            <div className="px-5 py-3 flex justify-between text-sm"><span className="text-slate-500">Totale {payment.name || payment.role}</span><span className="font-bold text-slate-900">{formatEuro(getPaymentTotal(payment))}</span></div>
+          </div>)}
+        </div>
+        <button type="button" onClick={() => setPayments(current => [...current, createPaymentRow()])} className="flex items-center gap-2 px-4 py-3 bg-white border border-dashed border-slate-400 hover:bg-slate-50 text-slate-700 rounded-xl font-medium"><Plus size={18} /> Aggiungi ruolo</button>
+      </> : <div className="bg-white border border-slate-200 rounded-xl p-14 text-center"><Wallet size={32} className="mx-auto text-slate-400 mb-3" /><h2 className="text-lg font-semibold text-slate-800">Nessun evento approvato</h2><p className="text-sm text-slate-500 mt-1">Approva un preventivo per preparare i pagamenti del suo evento.</p></div>}
+    </div>
+  );
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -3393,6 +3529,21 @@ export default function App() {
     setSelectedQuote(prev => prev && prev.id === quoteId ? { ...prev, formData: mergedFormData } : prev);
   };
 
+  const handleSaveMusicianPayments = async (quoteId, musicianPayments) => {
+    const quote = quotes.find(item => item.id === quoteId);
+    if (!quote) return;
+    const mergedFormData = { ...(quote.formData || {}), musicianPayments };
+    if (import.meta.env.DEV) {
+      const updated = quotes.map(item => item.id === quoteId ? { ...item, formData: mergedFormData } : item);
+      setQuotes(updated);
+      devSave(updated);
+      return;
+    }
+    const { error } = await supabase.from('quotes').update({ form_data: mergedFormData }).eq('id', quoteId);
+    if (error) throw error;
+    setQuotes(current => current.map(item => item.id === quoteId ? { ...item, formData: mergedFormData } : item));
+  };
+
   // Schermata di caricamento iniziale / login
   if (authLoading) {
     return (
@@ -3462,6 +3613,16 @@ export default function App() {
             onCreateNew={() => setCurrentView('create')}
             onPrint={handlePrint}
             onCreateContract={handleCreateContract}
+            onOpenAnalytics={() => setCurrentView('analytics')}
+            onOpenPayments={() => setCurrentView('payments')}
+          />
+        ) : currentView === 'analytics' ? (
+          <Analytics quotes={quotes} onBack={() => setCurrentView('dashboard')} />
+        ) : currentView === 'payments' ? (
+          <MusicianPayments
+            quotes={quotes}
+            onSave={handleSaveMusicianPayments}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'print' && selectedQuote ? (
           <PrintView 
@@ -3496,6 +3657,163 @@ export default function App() {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+const formatEuro = (value) => `€ ${Number(value || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`;
+
+const getAnalyticsEventDate = (quote) => quote.formData?.contractData?.dataEvento || quote.date || '';
+
+function Analytics({ quotes, onBack }) {
+  const analytics = useMemo(() => {
+    const latestQuotes = Array.from(
+      new Map(
+        [...quotes]
+          .sort((first, second) => (Date.parse(getQuoteCreatedAt(second)) || 0) - (Date.parse(getQuoteCreatedAt(first)) || 0))
+          .map(quote => [getQuoteGroupId(quote), quote])
+      ).values()
+    );
+
+    const contracts = latestQuotes
+      .filter(quote => quote.status === 'Approvato' && quote.formData?.contractData)
+      .map(quote => {
+        const contract = quote.formData.contractData;
+        const gross = Number(contract.compensoTotale || 0);
+        const savedNet = Number(contract.scontoPerTe);
+        const net = Number.isFinite(savedNet) && contract.scontoPerTe !== ''
+          ? savedNet
+          : roundPrice(gross * Number(quote.formData?.sconto || 0.65));
+        return { quote, contract, gross, net, eventDate: getAnalyticsEventDate(quote) };
+      })
+      .filter(item => item.gross > 0);
+
+    const grossRevenue = contracts.reduce((sum, item) => sum + item.gross, 0);
+    const netRevenue = contracts.reduce((sum, item) => sum + item.net, 0);
+    const clients = new Map();
+    const months = new Map();
+
+    contracts.forEach(item => {
+      const clientName = item.contract.nomeCliente || item.quote.client || 'Cliente non indicato';
+      const clientKey = clientName.trim().toLocaleLowerCase('it-IT');
+      const currentClient = clients.get(clientKey) || { name: clientName, count: 0, gross: 0, net: 0 };
+      clients.set(clientKey, {
+        ...currentClient,
+        count: currentClient.count + 1,
+        gross: currentClient.gross + item.gross,
+        net: currentClient.net + item.net,
+      });
+
+      const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(item.eventDate) ? new Date(`${item.eventDate}T12:00:00`) : null;
+      if (eventDate && !Number.isNaN(eventDate.getTime())) {
+        const key = item.eventDate.slice(0, 7);
+        const month = months.get(key) || { key, label: eventDate.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }), gross: 0, net: 0, count: 0 };
+        months.set(key, { ...month, gross: month.gross + item.gross, net: month.net + item.net, count: month.count + 1 });
+      }
+    });
+
+    return {
+      contracts,
+      grossRevenue,
+      netRevenue,
+      activeQuotes: latestQuotes.filter(quote => quote.status !== 'Archiviato').length,
+      pendingQuotes: latestQuotes.filter(quote => quote.status === 'In attesa').length,
+      approvedQuotes: latestQuotes.filter(quote => quote.status === 'Approvato').length,
+      clients: [...clients.values()].sort((first, second) => second.count - first.count || second.gross - first.gross).slice(0, 5),
+      months: [...months.values()].sort((first, second) => first.key.localeCompare(second.key)).slice(-6),
+    };
+  }, [quotes]);
+
+  const maxMonthlyGross = Math.max(...analytics.months.map(month => month.gross), 1);
+  const recentContracts = [...analytics.contracts].sort((first, second) => String(second.eventDate).localeCompare(String(first.eventDate))).slice(0, 5);
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={onBack} title="Torna alla dashboard" className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+            <ArrowLeft size={22} className="text-slate-600" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Analisi contratti</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Riepilogo basato esclusivamente sui contratti approvati.</p>
+          </div>
+        </div>
+        <div className="text-sm text-slate-500 bg-white border border-slate-200 px-4 py-2 rounded-lg">
+          {analytics.contracts.length} contratti contabilizzati
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Preventivi attivi</span><Briefcase size={18} className="text-blue-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.activeQuotes}</p>
+          <p className="text-xs text-slate-500 mt-1">ultime versioni non archiviate</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">In attesa</span><Clock size={18} className="text-amber-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.pendingQuotes}</p>
+          <p className="text-xs text-slate-500 mt-1">in attesa di risposta</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Approvati</span><CheckCircle size={18} className="text-green-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.approvedQuotes}</p>
+          <p className="text-xs text-slate-500 mt-1">preventivi confermati</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Eventi entrati</span><CalendarDays size={18} className="text-blue-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.contracts.length}</p>
+          <p className="text-xs text-slate-500 mt-1">contratti approvati con importo</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Entrate lorde</span><TrendingUp size={18} className="text-emerald-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{formatEuro(analytics.grossRevenue)}</p>
+          <p className="text-xs text-slate-500 mt-1">compensi finali dei contratti</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Entrate nette</span><Wallet size={18} className="text-violet-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{formatEuro(analytics.netRevenue)}</p>
+          <p className="text-xs text-slate-500 mt-1">Sconto per Te, al netto</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Valore medio evento</span><BarChart3 size={18} className="text-amber-600" /></div>
+          <p className="text-3xl font-bold text-slate-900 mt-3">{formatEuro(analytics.contracts.length ? analytics.grossRevenue / analytics.contracts.length : 0)}</p>
+          <p className="text-xs text-slate-500 mt-1">media del lordo contrattuale</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section className="xl:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-6"><div><h2 className="text-lg font-bold text-slate-900">Entrate per mese</h2><p className="text-sm text-slate-500">Lordo contrattuale degli ultimi sei mesi con eventi.</p></div><TrendingUp size={20} className="text-emerald-600" /></div>
+          {analytics.months.length ? (
+            <div className="h-56 flex items-end gap-3 sm:gap-5 border-b border-slate-200 pb-7">
+              {analytics.months.map(month => (
+                <div key={month.key} className="h-full flex-1 min-w-0 flex flex-col justify-end items-center gap-2 group">
+                  <span className="text-xs font-semibold text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{formatEuro(month.gross)}</span>
+                  <div className="w-full max-w-14 bg-emerald-500 hover:bg-emerald-600 rounded-t-md transition-colors" style={{ height: `${Math.max((month.gross / maxMonthlyGross) * 100, 4)}%` }} title={`${month.label}: ${formatEuro(month.gross)}`} />
+                  <span className="text-xs text-slate-500 capitalize whitespace-nowrap">{month.label}</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="py-20 text-center text-slate-400 text-sm">Non ci sono ancora contratti con una data evento valida.</p>}
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-bold text-slate-900">Clienti più frequenti</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-5">Ordinati per numero di contratti.</p>
+          {analytics.clients.length ? <div className="space-y-4">{analytics.clients.map((client, index) => (
+            <div key={client.name} className="flex items-center gap-3">
+              <span className="w-6 text-sm font-bold text-slate-400">{index + 1}</span>
+              <div className="min-w-0 flex-1"><p className="font-medium text-slate-800 truncate">{client.name}</p><p className="text-xs text-slate-500">{client.count} {client.count === 1 ? 'evento' : 'eventi'} · {formatEuro(client.gross)}</p></div>
+            </div>
+          ))}</div> : <p className="py-12 text-center text-slate-400 text-sm">Nessun cliente da mostrare.</p>}
+        </section>
+      </div>
+
+      <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-200"><h2 className="text-lg font-bold text-slate-900">Ultimi eventi contrattualizzati</h2></div>
+        {recentContracts.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 uppercase text-xs"><tr><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Data evento</th><th className="px-6 py-3 text-right">Lordo contratto</th><th className="px-6 py-3 text-right">Netto</th></tr></thead><tbody className="divide-y divide-slate-200">{recentContracts.map(({ quote, contract, gross, net, eventDate }) => <tr key={quote.id}><td className="px-6 py-4 font-medium text-slate-800">{contract.nomeCliente || quote.client}</td><td className="px-6 py-4 text-slate-600">{eventDate || 'Non indicata'}</td><td className="px-6 py-4 text-right text-slate-800">{formatEuro(gross)}</td><td className="px-6 py-4 text-right font-semibold text-emerald-700">{formatEuro(net)}</td></tr>)}</tbody></table></div> : <p className="py-14 text-center text-slate-400 text-sm">Salva e approva un contratto per iniziare a vedere le statistiche.</p>}
+      </section>
     </div>
   );
 }
