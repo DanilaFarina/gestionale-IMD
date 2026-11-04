@@ -2061,7 +2061,7 @@ function ContractPDF({ data, logoPng }) {
           <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Acconto (caparra confirmatoria/penitenziale): € ${acconto.toLocaleString('it-IT')} alla firma del contratto` : 'Acconto:'}{c.giorniAcconto ? `, e comunque entro ${c.giorniAcconto} giorni lavorativi dalla sottoscrizione.` : '.'}</Text></View>
         ) : null}
         {(saldo || c.tempisticaSaldo) ? (
-          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Saldo: € {saldo.toLocaleString('it-IT')} + IVA da corrispondersi{c.tempisticaSaldo ? ` entro ${c.tempisticaSaldo}` : ''}.</Text></View>
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Saldo: € {saldo.toLocaleString('it-IT')}{ivaLabel} da corrispondersi{c.tempisticaSaldo ? ` entro ${c.tempisticaSaldo}` : ''}.</Text></View>
         ) : null}
         {isCausaleDataAvailable || c.causaleBonifico ? (
           <Text style={pdfStyles.clauseText}>4.2 Il pagamento dovrà essere effettuato tramite bonifico bancario su IBAN {IMD_INFO.iban} intestato a {IMD_INFO.ibanIntestatario}. Causale: «{c.causaleBonifico || `Consulenza musicale evento ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}».</Text>
@@ -2370,6 +2370,7 @@ function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, 
 function ContractPDF_EN({ data, logoPng }) {
   const c = data;
   const compenso = Number(c.compensoTotale || 0);
+  const ivaLabel = c.mostraIva ? ' + VAT 22%' : '';
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
   const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
@@ -2507,12 +2508,12 @@ function ContractPDF_EN({ data, logoPng }) {
 
         {/* 4. Compensation */}
         <Text style={pdfStyles.sectionHeader}>4. COMPENSATION AND EXPENSES</Text>
-        <Text style={pdfStyles.clauseText}>4.1 The total compensation due from the Client is € {compenso.toLocaleString('it-IT')} + VAT 22%, broken down as follows:</Text>
+        <Text style={pdfStyles.clauseText}>4.1 The total compensation due from the Client is € {compenso.toLocaleString('it-IT')}{ivaLabel}, broken down as follows:</Text>
         {(acconto || c.giorniAcconto) ? (
-          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Deposit (confirmation deposit): € ${acconto.toLocaleString('it-IT')} + VAT 22% at contract signing` : 'Deposit:'}{c.giorniAcconto ? `, due within ${c.giorniAcconto} business days from signing.` : '.'}</Text></View>
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{acconto ? `Deposit (confirmation deposit): € ${acconto.toLocaleString('it-IT')}${ivaLabel} at contract signing` : 'Deposit:'}{c.giorniAcconto ? `, due within ${c.giorniAcconto} business days from signing.` : '.'}</Text></View>
         ) : null}
         {(saldo || c.tempisticaSaldo) ? (
-          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Final Payment: € {saldo.toLocaleString('it-IT')} + VAT 22% due{c.tempisticaSaldo ? ` ${c.tempisticaSaldo}` : ''}.</Text></View>
+          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>Final Payment: € {saldo.toLocaleString('it-IT')}{ivaLabel} due{c.tempisticaSaldo ? ` ${c.tempisticaSaldo}` : ''}.</Text></View>
         ) : null}
         {isCausaleDataAvailable || c.causaleBonifico ? (
           <Text style={pdfStyles.clauseText}>4.2 Payment shall be made by bank transfer to IBAN {IMD_INFO.iban} in the name of {IMD_INFO.ibanIntestatario}. Reference: "{c.causaleBonifico || `Musical performance event ${c.dataEvento || ''}${c.dataEvento && c.nomeCliente ? ' - ' : ''}${c.nomeCliente || ''}`}".</Text>
