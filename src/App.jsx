@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import { Document, Page, View, Text, Image, StyleSheet, pdf, PDFViewer, Font, Link as PDFLink } from '@react-pdf/renderer';
 import logoIMD from './assets/logo-imd.svg';
@@ -32,11 +32,9 @@ import {
   Save,
   Calculator,
   User,
-  Calendar,
   Briefcase,
   Printer,
   Car,
-  Users,
   LogOut,
   Mail,
   FileText,
@@ -44,7 +42,8 @@ import {
   BarChart3,
   TrendingUp,
   Wallet,
-  CalendarDays
+  CalendarDays,
+  RotateCcw
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
@@ -128,6 +127,14 @@ const getQuoteGroupId = (quote) => quote.formData?._quoteGroupId || quote.id;
 const getQuoteVersion = (quote) => Number(quote.formData?._quoteVersion) || 1;
 const getQuoteCreatedAt = (quote) => quote.formData?._createdAt || '';
 
+const EVENT_TYPE_LABELS = {
+  Matrimonio: 'Matrimonio',
+  Aziendale: 'Evento Aziendale',
+  Compleanno: 'Festa Privata / Compleanno',
+  Capodanno: 'Capodanno',
+  Concerto: 'Concerto'
+};
+
 const fileNamePart = (value, fallback) => String(value || fallback)
   .trim()
   .normalize('NFD')
@@ -140,12 +147,26 @@ const fileDatePart = (value) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : fileNamePart(date, 'SenzaData');
 };
 
-const buildPdfFileName = (type, client, date, language = '') =>
-  `${type}_${fileNamePart(client, 'Cliente')}_${fileDatePart(date)}${language ? `_${language}` : ''}.pdf`;
+const buildPdfFileName = (type, client, date) =>
+  `${fileDatePart(date)}_${fileNamePart(client, 'Cliente')}_${type}.pdf`;
 
-function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate, onCreateNew, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
-  const [searchTerm, setSearchTerm] = useState('');
+function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
+  const [clientFilter, setClientFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('Tutti');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
+  const eventTypeOptions = [...new Set([...Object.keys(EVENT_TYPE_LABELS), ...quotes.map(quote => quote.type).filter(Boolean)])]
+    .map(value => ({ value, label: EVENT_TYPE_LABELS[value] || value }));
+  const hasActiveFilters = Boolean(clientFilter || locationFilter || typeFilter !== 'Tutti' || dateFrom || dateTo);
+  const resetFilters = () => {
+    setClientFilter('');
+    setLocationFilter('');
+    setTypeFilter('Tutti');
+    setDateFrom('');
+    setDateTo('');
+  };
   const sortedQuotes = [...quotes].sort((a, b) => {
     const dateA = Date.parse(getQuoteCreatedAt(a)) || 0;
     const dateB = Date.parse(getQuoteCreatedAt(b)) || 0;
@@ -153,12 +174,18 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
   });
 
   const filteredQuotes = sortedQuotes.filter(quote => {
-    const matchesSearch = quote.client.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          quote.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          getQuoteGroupId(quote).toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'Tutti' || quote.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+    const matchesClient = String(quote.client || '').toLowerCase().includes(clientFilter.trim().toLowerCase());
+    const matchesLocation = String(quote.location || '').toLowerCase().includes(locationFilter.trim().toLowerCase());
+    const matchesType = typeFilter === 'Tutti' || quote.type === typeFilter;
+    const quoteDate = /^\d{4}-\d{2}-\d{2}$/.test(quote.date || '') ? quote.date : '';
+    const matchesDate = (!dateFrom && !dateTo) || (
+      quoteDate && (!dateFrom || quoteDate >= dateFrom) && (!dateTo || quoteDate <= dateTo)
+    );
+    const matchesStatus = statusFilter === 'Archiviato'
+      ? quote.status === 'Archiviato'
+      : quote.status !== 'Archiviato' && (statusFilter === 'Tutti' || quote.status === statusFilter);
+
+    return matchesClient && matchesLocation && matchesType && matchesDate && matchesStatus;
   });
 
   const getRowHighlight = (status) => {
@@ -174,8 +201,7 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
         <div className="flex items-center gap-4">
           <img src={logoIMD} alt="IMD Logo" className="h-34 w-auto" />
           <div>
-            <h1 className="text-l font-bold tracking-tight text-slate-900">Preventivi Eventi</h1>
-            <p className="text-slate-500 mt-0.5 text-sm">Gestisci le tue richieste, calcola i cachet e chiudi le date.</p>
+            <p className="text-slate-500 text-sm">Gestisci le tue richieste, calcola i cachet e chiudi le date.</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -197,6 +223,14 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
           </button>
           <button
             type="button"
+            onClick={onCreateBlankContract}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
+          >
+            <FileText size={20} />
+            Nuovo Contratto Bianco
+          </button>
+          <button
+            type="button"
             onClick={onCreateNew}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
           >
@@ -208,20 +242,75 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
 
       {/* Filtri & Tabella */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="relative w-full md:w-96">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={18} className="text-slate-400" />
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-500 mb-1">Nome cliente</span>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={16} className="text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cerca cliente..."
+                  className="block w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-500 mb-1">Location</span>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MapPin size={16} className="text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cerca location..."
+                  className="block w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-500 mb-1">Tipo evento</span>
+              <select
+                className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+              >
+                <option value="Tutti">Tutti</option>
+                {eventTypeOptions.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-3 xl:col-span-2">
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-500 mb-1">Data evento dal</span>
+                <input
+                  type="date"
+                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-500 mb-1">Data evento al</span>
+                <input
+                  type="date"
+                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </label>
             </div>
-            <input
-              type="text"
-              placeholder="Cerca per cliente, location o ID..."
-              className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
           </div>
-          
+
           <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
             <Filter size={18} className="text-slate-400 mr-1 hidden md:block" />
             {['Tutti', 'In attesa', 'Approvato', 'Archiviato'].map(status => (
@@ -238,6 +327,15 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
                 {status}
               </button>
             ))}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="ml-auto px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                Azzera filtri
+              </button>
+            )}
           </div>
         </div>
 
@@ -258,13 +356,12 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
                     <td className="px-6 py-4">
                       <div className="font-semibold text-slate-900">{quote.client}</div>
                       <div className="flex items-center text-slate-500 text-xs mt-1 gap-3">
-                        <span>ID {getQuoteGroupId(quote)} · v{getQuoteVersion(quote)}</span>
-                        <span className="flex items-center gap-1"><Clock size={12} /> {quote.date}</span>
-                        <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location} ({quote.type})</span>
+                        <span className="flex items-center gap-1"><Clock size={12} /> {quote.date || 'Da definire'}</span>
+                        <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location || 'Da definire'} ({quote.type})</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-900">
-                      €{(quote.formData?.contractData?.compensoTotale ?? quote.prezzoLordo ?? quote.total).toLocaleString('it-IT')}
+                      €{Number(quote.formData?.contractData?.compensoTotale ?? quote.prezzoLordo ?? quote.total ?? 0).toLocaleString('it-IT')}
                       {quote.formData?.contractData?.compensoTotale && quote.formData.contractData.compensoTotale !== (quote.prezzoLordo ?? quote.total) && (
                         <span className="text-xs text-slate-400 ml-2">(contratto)</span>
                       )}
@@ -278,6 +375,7 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {!quote.formData?._isBlankContract && (
                         <button
                           type="button"
                           onClick={() => onPrint(quote)}
@@ -286,6 +384,7 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
                         >
                           <Printer size={18} />
                         </button>
+                        )}
                         {quote.status === 'Approvato' && (
                           <button
                             type="button"
@@ -308,12 +407,13 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
                         )}
                         <button
                           type="button"
-                          onClick={() => onEdit(quote.id)}
-                          title="Modifica Preventivo"
+                          onClick={() => quote.formData?._isBlankContract ? onCreateContract(quote) : onEdit(quote.id)}
+                          title={quote.formData?._isBlankContract ? 'Modifica Contratto' : 'Modifica Preventivo'}
                           className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                         >
                           <Edit size={18} />
                         </button>
+                        {!quote.formData?._isBlankContract && (
                         <button
                           type="button"
                           onClick={() => onDuplicate(quote.id)}
@@ -322,6 +422,17 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
                         >
                           <Copy size={18} />
                         </button>
+                        )}
+                        {quote.status === 'Archiviato' && (
+                          <button
+                            type="button"
+                            onClick={() => onRestore(quote.id)}
+                            title="Ripristina (torna In attesa)"
+                            className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                          >
+                            <RotateCcw size={18} />
+                          </button>
+                        )}
                         {quote.status !== 'Archiviato' && (
                           <button
                             type="button"
@@ -375,12 +486,6 @@ function Dashboard({ quotes, onApprove, onArchive, onDelete, onEdit, onDuplicate
 // ==========================================
 // COMPONENTE CREAZIONE PREVENTIVO
 // ==========================================
-// Helper: nome formazione in base al numero di musicisti
-const getFormazioneName = (n) => {
-  const nomi = { 1: 'Solista', 2: 'Duo', 3: 'Trio', 4: 'Quartetto', 5: 'Quintetto', 6: 'Sestetto', 7: 'Settetto', 8: 'Ottetto' };
-  return nomi[n] || `Ensemble (${n} musicisti)`;
-};
-
 // Compone un indirizzo in formato italiano (Via nr, CAP Città) dai dettagli Nominatim
 const formatItalianAddress = (s) => {
   const a = s?.address || {};
@@ -421,6 +526,58 @@ const getSafeExternalUrl = (value) => {
   }
 };
 
+const URL_IN_TEXT = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+const TRAILING_PUNCTUATION = /[.,;:!?)\]]+$/;
+
+// Divide un testo in parti normali e link (i link sono le parti dispari)
+const splitTextWithUrls = (text = '') => String(text).split(URL_IN_TEXT).flatMap((part, i) => {
+  if (i % 2 === 0) return part ? [{ text: part }] : [];
+  const trailing = part.match(TRAILING_PUNCTUATION)?.[0] || '';
+  const url = trailing ? part.slice(0, -trailing.length) : part;
+  return trailing ? [{ text: url, url }, { text: trailing }] : [{ text: url, url }];
+});
+
+// Rimuove i link da un testo (il contratto non li riporta)
+const stripUrls = (text = '') => String(text)
+  .replace(URL_IN_TEXT, '')
+  .replace(/[ \t]{2,}/g, ' ')
+  .split('\n').map(line => line.trim()).join('\n')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
+const hasMomentContent = (m) => Boolean(m?.titolo || m?.inizio || m?.fine || m?.descrizione || m?.numPause || m?.minutiPausa);
+
+// Testo delle pause di un momento (numero e/o durata, entrambi facoltativi)
+const formatPause = (m, english = false) => {
+  const numero = String(m?.numPause ?? '').trim();
+  let durata = String(m?.minutiPausa ?? '').trim();
+  if (!numero && !durata) return '';
+  if (/^\d+$/.test(durata)) durata += english ? ' minutes' : ' minuti';
+  const parts = [
+    numero,
+    durata ? (english ? `max duration ${durata}` : `durata max ${durata}`) : ''
+  ].filter(Boolean);
+  return `${english ? 'Breaks' : 'Pause'}: ${parts.join(', ')}`;
+};
+
+// Montaggio e soundcheck: primo punto del programma, separato dai momenti musicali
+const DEFAULT_MONTAGGIO = { attivo: false, titolo: 'Montaggio e soundcheck', descrizione: '', inizio: '', fine: '' };
+
+// Facoltativo: incluso solo se spuntato (dati precedenti senza spunta restano attivi se compilati)
+const hasSetupContent = (m) => Boolean(m?.attivo ?? (m?.inizio || m?.fine || m?.descrizione));
+
+const getSetupTitle = (m, english = false) => {
+  const titolo = String(m?.titolo || '').trim();
+  if (!titolo || titolo === DEFAULT_MONTAGGIO.titolo) return english ? 'Setup and sound check' : DEFAULT_MONTAGGIO.titolo;
+  return titolo;
+};
+
+// Programma del preventivo: montaggio (se compilato) seguito dai momenti musicali
+const getQuoteProgram = (fd, english = false) => [
+  hasSetupContent(fd?.montaggio) ? { ...fd.montaggio, titolo: getSetupTitle(fd.montaggio, english) } : null,
+  ...(fd?.momenti || []).filter(hasMomentContent),
+].filter(Boolean);
+
 // Durata in ore tra due orari (gestisce lo scavalco di mezzanotte)
 const computeDurataOre = (inizio, fine) => {
   const a = parseTimeToMinutes(inizio);
@@ -442,8 +599,10 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     acconto: 0,
     numeroOspiti: '',
     numPasti: 3,
+    validitaGiorni: 30,
     numMomenti: 1,
-    momenti: [{ titolo: '', descrizione: '', link: '', minutiPausa: '', inizio: '', fine: '' }],
+    montaggio: { ...DEFAULT_MONTAGGIO },
+    momenti: [{ titolo: '', descrizione: '', numPause: '', minutiPausa: '', inizio: '', fine: '' }],
     numMusicisti: 3,
     cachetMusicista: 200,
     costoCerimonia: 0,
@@ -527,9 +686,13 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     setFormData(prev => {
       const n = Math.max(1, prev.numMomenti + delta);
       const momenti = [...(prev.momenti || [])];
-      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', link: '', minutiPausa: '', inizio: '', fine: '' });
+      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', numPause: '', minutiPausa: '', inizio: '', fine: '' });
       return { ...prev, numMomenti: n, momenti: momenti.slice(0, n) };
     });
+  };
+
+  const handleMontaggioField = (field, value) => {
+    setFormData(prev => ({ ...prev, montaggio: { ...DEFAULT_MONTAGGIO, ...prev.montaggio, attivo: hasSetupContent(prev.montaggio), [field]: value } }));
   };
 
   const handleMomentoField = (index, field, value) => {
@@ -613,6 +776,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
   // Debounce: ricalcola quando cambia la location
   useEffect(() => {
     if (!formData.usaTrasferta) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDistanzaError('');
       return;
     }
@@ -641,6 +805,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     }
     const q = (formData.address || '').trim();
     if (q.length < 3) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAddressSuggestions([]);
       return;
     }
@@ -720,7 +885,12 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     const prezzoFinale = roundPrice(prezzoFinaleRaw);
     const prezzoLordo = roundPrice(prezzoFinale / 0.6);
     const scontoPerTe = roundPrice(prezzoLordo * n(formData.sconto));
-    const margineAgenzia = prezzoFinale - totaleCostiBase - costoTrasferta - costoPernottamento;
+    const margineAgenzia = prezzoFinale
+      - totaleCostiBase
+      - costoTrasferta
+      - costoPernottamento
+      - commissioneFTMVal
+      - commissioneWPVal;
 
     return {
       costiMusicisti,
@@ -792,6 +962,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     }
     if (!onAutosave || !formData.client) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAutosaveStatus('pending');
     if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
     autosaveTimeoutRef.current = setTimeout(async () => {
@@ -902,6 +1073,10 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     addLine('Nome Location', formData.nomeLocation || '-');
     addLine('Indirizzo', formData.address || '-');
     addLine('Numero Momenti', formData.numMomenti);
+    if (hasSetupContent(formData.montaggio)) {
+      addLine(getSetupTitle(formData.montaggio), [formData.montaggio.inizio, formData.montaggio.fine].filter(Boolean).join(' – ') || '-');
+      if (formData.montaggio.descrizione) addLine('', formData.montaggio.descrizione);
+    }
     if (formData.momenti?.length) {
       formData.momenti.forEach((m, i) => {
         addLine(`  Momento ${i + 1}`, m.titolo || '-');
@@ -944,7 +1119,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     addLine('① Prezzo Finale Cliente', `${euro(calc.prezzoFinale)} + IVA 22%`);
     addLine('② Prezzo Lordo (÷0.6)', `${euro(calc.prezzoLordo)} + IVA 22%`);
     addLine(`③ Sconto per Te (×${formatMultiplier(formData.sconto)})`, `${euro(calc.scontoPerTe)} + IVA 22%`);
-    addLine('Margine Agenzia Stimato', euro(Math.round(calc.margineAgenzia)));
+    addLine('Margine Agenzia Stimato (al netto di WP/FTM)', euro(Math.round(calc.margineAgenzia)));
 
     pdf.save(`Report_Interno_${reportId}.pdf`);
   };
@@ -1051,7 +1226,63 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
                     <input type="number" name="numPasti" min="0" value={formData.numPasti} onChange={handleChange} placeholder="es. 3" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
                     <p className="text-xs text-slate-500 mt-1">Pasti per gli artisti (Vitto nelle condizioni PDF)</p>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Validità preventivo (giorni)</label>
+                    <input type="number" name="validitaGiorni" min="1" value={formData.validitaGiorni} onChange={handleChange} placeholder="es. 30" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    <p className="text-xs text-slate-500 mt-1">Dopo questa durata disponibilità e prezzo non sono garantiti (indicato nel PDF)</p>
+                  </div>
                   <div className="md:col-span-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 mb-4">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={hasSetupContent(formData.montaggio)}
+                            onChange={e => handleMontaggioField('attivo', e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600"
+                          />
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Montaggio e soundcheck</span>
+                        </label>
+                        {hasSetupContent(formData.montaggio) && (
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-slate-500">Dalle:</label>
+                          <input
+                            type="text"
+                            value={formData.montaggio?.inizio || ''}
+                            onChange={e => handleMontaggioField('inizio', e.target.value)}
+                            placeholder="es. 16:00"
+                            className="w-20 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <label className="text-xs text-slate-500">Alle:</label>
+                          <input
+                            type="text"
+                            value={formData.montaggio?.fine || ''}
+                            onChange={e => handleMontaggioField('fine', e.target.value)}
+                            placeholder="es. 17:00"
+                            className="w-20 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        )}
+                      </div>
+                      {hasSetupContent(formData.montaggio) && (
+                      <>
+                      <input
+                        type="text"
+                        value={formData.montaggio?.titolo ?? DEFAULT_MONTAGGIO.titolo}
+                        onChange={e => handleMontaggioField('titolo', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <textarea
+                        rows={2}
+                        value={formData.montaggio?.descrizione || ''}
+                        onChange={e => handleMontaggioField('descrizione', e.target.value)}
+                        placeholder="Note su montaggio e soundcheck (facoltative)"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      />
+                      <p className="text-xs text-slate-500">Non conta nel numero dei momenti. Compare come primo punto del programma nel preventivo e nel contratto.</p>
+                      </>
+                      )}
+                    </div>
                     <div className="flex items-center justify-between mb-3">
                       <label className="block text-sm font-medium text-slate-700">Momenti Musicali</label>
                       <div className="flex items-center gap-2">
@@ -1095,25 +1326,27 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
                             rows={2}
                             value={m.descrizione}
                             onChange={e => handleMomentoField(i, 'descrizione', e.target.value)}
-                            placeholder="Breve descrizione del momento musicale"
+                            placeholder="Breve descrizione del momento musicale (i link incollati qui compaiono solo nel preventivo)"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 resize-none"
                           />
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input
-                              type="url"
-                              value={m.link || ''}
-                              onChange={e => handleMomentoField(i, 'link', e.target.value)}
-                              placeholder="Link al momento (facoltativo)"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
-                            />
                             <div>
-                              <label className="block text-xs text-slate-500 mb-1">Pausa max (minuti, facoltativa)</label>
+                              <label className="block text-xs text-slate-500 mb-1">Numero pause (facoltativo)</label>
                               <input
-                                type="number"
-                                min="0"
+                                type="text"
+                                value={m.numPause ?? ''}
+                                onChange={e => handleMomentoField(i, 'numPause', e.target.value)}
+                                placeholder="es. 2"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Durata pausa (facoltativa)</label>
+                              <input
+                                type="text"
                                 value={m.minutiPausa ?? ''}
-                                onChange={e => handleMomentoField(i, 'minutiPausa', e.target.value === '' ? '' : Number(e.target.value))}
-                                placeholder="es. 20"
+                                onChange={e => handleMomentoField(i, 'minutiPausa', e.target.value)}
+                                placeholder="es. 20 (minuti) o 15-20 minuti"
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
                               />
                             </div>
@@ -1603,7 +1836,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
               </div>
 
               <div className="border-t border-slate-700 pt-3 flex justify-between items-center">
-                <span className="text-sm text-slate-400">Tuo Margine Stimato</span>
+                <span className="text-sm text-slate-400">Tuo Margine Stimato (al netto WP/FTM)</span>
                 <span className={`font-bold ${calc.margineAgenzia >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   € {calc.margineAgenzia.toLocaleString('it-IT', {maximumFractionDigits: 0})}
                 </span>
@@ -1701,6 +1934,7 @@ const pdfStyles = StyleSheet.create({
   bulletRow: { flexDirection: 'row', marginBottom: 4 },
   bulletDot: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', width: 10 },
   bulletText: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', flex: 1, lineHeight: 1.4 },
+  momentoLine: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', lineHeight: 1.4 },
   twoColLeft: { flex: 1, marginRight: 14 },
   twoColRight: { flex: 1 },
   colSubHeader: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', letterSpacing: 1, marginBottom: 6 },
@@ -1716,23 +1950,24 @@ const pdfStyles = StyleSheet.create({
   signName: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', textAlign: 'center' },
 });
 
-function PDFMomentDetails({ moment, english = false, showLink = true }) {
-  const safeLink = getSafeExternalUrl(moment.link);
-  const breakMinutes = Number(moment.minutiPausa || 0);
+function PDFMomentDetails({ moment, english = false, linkify = false }) {
+  const pause = formatPause(moment, english);
 
   return (
     <>
-      {moment.descrizione ? <Text style={pdfStyles.momentoDesc}>{moment.descrizione}</Text> : null}
-      {showLink && moment.link ? (
-        safeLink
-          ? <PDFLink src={safeLink} style={pdfStyles.momentoLink}>{moment.link}</PDFLink>
-          : <Text style={pdfStyles.momentoDesc}>{moment.link}</Text>
-      ) : null}
-      {breakMinutes > 0 ? (
+      {moment.descrizione ? (
         <Text style={pdfStyles.momentoDesc}>
-          {english ? `Breaks: up to ${breakMinutes} minutes` : `Pause: massimo ${breakMinutes} minuti`}
+          {linkify
+            ? splitTextWithUrls(moment.descrizione).map((part, i) => {
+                const href = part.url ? getSafeExternalUrl(part.url) : '';
+                return href
+                  ? <PDFLink key={i} src={href} style={pdfStyles.momentoLink}>{part.text}</PDFLink>
+                  : <Text key={i}>{part.text}</Text>;
+              })
+            : moment.descrizione}
         </Text>
       ) : null}
+      {pause ? <Text style={pdfStyles.momentoDesc}>{pause}</Text> : null}
     </>
   );
 }
@@ -1754,9 +1989,17 @@ const IMD_INFO = {
   sito: 'www.italianmusicdesigner.com',
 };
 
-function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
+// Durata di validità del preventivo in giorni (default 30)
+const getQuoteValidityDays = (fd) => {
+  const days = Math.floor(Number(fd?.validitaGiorni));
+  return days > 0 ? days : 30;
+};
+
+function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, acconto, fd }) {
   const today = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const [now] = useState(() => Date.now());
+  const validityDays = getQuoteValidityDays(fd);
+  const expiry = new Date(now + validityDays * 24 * 60 * 60 * 1000).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const inclusi = ['Performance musicale come da programma'];
   if (fd.usaCoordinator) inclusi.push('Consulenza, direzione e coordinamento artistico');
@@ -1819,15 +2062,15 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         {/* 2. Proposta Artistica */}
         <View>
           <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica</Text>
-          {(fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).length > 0
-            ? (fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).map((m, i) => (
+          {getQuoteProgram(fd).length > 0
+            ? getQuoteProgram(fd).map((m, i) => (
                 <View key={i} style={pdfStyles.momentoRow} wrap={false}>
                   <Text style={pdfStyles.momentoBullet}>•</Text>
                   <View style={pdfStyles.momentoContent}>
                     <Text style={pdfStyles.momentoTitle}>
                       {m.titolo}{(m.inizio || m.fine) ? `  \u2014  Orario: ${[m.inizio, m.fine].filter(Boolean).join(' \u2013 ')}` : ''}
                     </Text>
-                    <PDFMomentDetails moment={m} showLink={false} />
+                    <PDFMomentDetails moment={m} linkify />
                   </View>
                 </View>
               ))
@@ -1935,7 +2178,7 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         </View>
 
         <Text style={pdfStyles.note}>
-          Il presente preventivo ha validità 30 giorni dalla data di emissione.
+          Il presente preventivo ha validità {validityDays} giorni dalla data di emissione. Trascorso tale termine non sono garantite né la disponibilità del servizio richiesto né il prezzo indicato.
         </Text>
         <View style={pdfStyles.footer}>
           <View style={pdfStyles.footerLine} />
@@ -1955,7 +2198,7 @@ function ContractPDF({ data, logoPng }) {
   const ivaLabel = c.mostraIva ? ' + IVA' : '';
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
-  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.link || m.minutiPausa);
+  const momenti = (c.momenti || []).filter(hasMomentContent);
   
   // Inclusioni / esclusioni opzionali (gestite dai checkbox)
   const includAudio = c.includAudio === true;
@@ -1996,10 +2239,6 @@ function ContractPDF({ data, logoPng }) {
     c.nomeLocation ? `presso ${c.nomeLocation}` : '',
     c.indirizzoLocation ? `situata in ${c.indirizzoLocation}` : '',
     c.dataEvento ? `il giorno ${c.dataEvento}` : ''
-  ].filter(Boolean);
-  const paymentText = [
-    c.giorniAcconto ? `entro ${c.giorniAcconto} giorni lavorativi dalla sottoscrizione` : '',
-    c.tempisticaSaldo ? `entro ${c.tempisticaSaldo}` : ''
   ].filter(Boolean);
   const isCausaleDataAvailable = Boolean(c.dataEvento || c.nomeCliente);
 
@@ -2046,14 +2285,22 @@ function ContractPDF({ data, logoPng }) {
             1.2 La prestazione avrà una durata complessiva di {c.durataOre || 'da definire'} ore{c.oraInizio || c.oraFine ? `, dalle ${c.oraInizio || '—'} alle ${c.oraFine || '—'}` : ''}, secondo il seguente programma di massima:
           </Text>
         ) : null}
-        {c.orarioMontaggio ? (
-          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.orarioMontaggio} — Montaggio e sound check</Text></View>
+        {hasSetupContent(c.montaggio) ? (
+          <View style={pdfStyles.bulletRow}>
+            <Text style={pdfStyles.bulletDot}>•</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={pdfStyles.momentoLine}>
+                {[c.montaggio.inizio, c.montaggio.fine].filter(Boolean).join(' – ')}{(c.montaggio.inizio || c.montaggio.fine) ? ' — ' : ''}{getSetupTitle(c.montaggio)}
+              </Text>
+              <PDFMomentDetails moment={c.montaggio} />
+            </View>
+          </View>
         ) : null}
         {momenti.map((m, i) => (
           <View key={i} style={pdfStyles.bulletRow}>
             <Text style={pdfStyles.bulletDot}>•</Text>
             <View style={{ flex: 1 }}>
-              <Text style={pdfStyles.bulletText}>
+              <Text style={pdfStyles.momentoLine}>
                 {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live "${m.titolo}"` : ''}
               </Text>
               <PDFMomentDetails moment={m} />
@@ -2066,7 +2313,7 @@ function ContractPDF({ data, logoPng }) {
 
         {/* 2. Prestazioni */}
         <Text style={pdfStyles.sectionHeader}>2. PRESTAZIONI DI IMD</Text>
-        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {escludiVitto ? 'è a carico del Cliente.' : includVitto ? 'è incluso nel prezzo.' : 'è da concordare.'}</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti {escludiVitto ? 'è a carico del Cliente.' : includVitto ? 'è incluso nel prezzo.' : 'è da concordare.'}{escludiVitto ? ' In caso di non adempimento degli accordi sul vitto il compenso aumenta di € 50,00 (IVA esclusa) per ogni persona di IMD presente all\'evento.' : ''}</Text>
         <Text style={pdfStyles.clauseText}>2.2 IMD può sostituire i musicisti titolari in caso di impedimento, ad eccezione del frontman {c.nomeFrontman || IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD può interrompere o non svolgere l&apos;esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l&apos;incolumità dei musicisti, gli strumenti o le apparecchiature elettriche. In caso di esibizione all&apos;aperto dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.</Text>
         <Text style={pdfStyles.clauseText}>2.4 Il repertorio musicale sarà scelto autonomamente da IMD; il Cliente potrà proporre brani preferenziali appartenenti al repertorio.</Text>
@@ -2220,9 +2467,11 @@ Qualora l&apos;esecuzione del servizio divenga definitivamente impossibile per c
 // ==========================================
 // DOCUMENTO PDF PREVENTIVO INGLESE
 // ==========================================
-function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd }) {
+function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, acconto, fd }) {
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const [now] = useState(() => Date.now());
+  const validityDays = getQuoteValidityDays(fd);
+  const expiry = new Date(now + validityDays * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const ivaLabel = fd.mostraIva ? ' + VAT 22%' : '';
 
   const inclusi = ['Musical performance as per program'];
@@ -2286,15 +2535,15 @@ function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, 
         {/* 2. Artistic Proposal */}
         <View>
           <Text style={pdfStyles.sectionHeader}>2. Artistic Proposal</Text>
-          {(fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).length > 0
-            ? (fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).map((m, i) => (
+          {getQuoteProgram(fd, true).length > 0
+            ? getQuoteProgram(fd, true).map((m, i) => (
                 <View key={i} style={pdfStyles.momentoRow} wrap={false}>
                   <Text style={pdfStyles.momentoBullet}>•</Text>
                   <View style={pdfStyles.momentoContent}>
                     <Text style={pdfStyles.momentoTitle}>
                       {m.titolo}{(m.inizio || m.fine) ? `  \u2014  Time: ${[m.inizio, m.fine].filter(Boolean).join(' \u2013 ')}` : ''}
                     </Text>
-                    <PDFMomentDetails moment={m} english showLink={false} />
+                    <PDFMomentDetails moment={m} english linkify />
                   </View>
                 </View>
               ))
@@ -2398,7 +2647,7 @@ function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, 
         </View>
 
         <Text style={pdfStyles.note}>
-          This quote is valid for 30 days from the issue date.
+          This quote is valid for {validityDays} days from the issue date. After this period, neither the availability of the requested service nor the quoted price is guaranteed.
         </Text>
         <View style={pdfStyles.footer}>
           <View style={pdfStyles.footerLine} />
@@ -2418,7 +2667,7 @@ function ContractPDF_EN({ data, logoPng }) {
   const ivaLabel = c.mostraIva ? ' + VAT 22%' : '';
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
-  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.link || m.minutiPausa);
+  const momenti = (c.momenti || []).filter(hasMomentContent);
   
   const includAudio = c.includAudio === true;
   const escludiAudio = c.escludiAudio === true;
@@ -2501,14 +2750,22 @@ function ContractPDF_EN({ data, logoPng }) {
             1.2 The performance will have a total duration of {c.durataOre || 'to be determined'} hours{c.oraInizio || c.oraFine ? `, from ${c.oraInizio || '—'} to ${c.oraFine || '—'}` : ''}, according to the following schedule:
           </Text>
         ) : null}
-        {c.orarioMontaggio ? (
-          <View style={pdfStyles.bulletRow}><Text style={pdfStyles.bulletDot}>•</Text><Text style={pdfStyles.bulletText}>{c.orarioMontaggio} — Setup and sound check</Text></View>
+        {hasSetupContent(c.montaggio) ? (
+          <View style={pdfStyles.bulletRow}>
+            <Text style={pdfStyles.bulletDot}>•</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={pdfStyles.momentoLine}>
+                {[c.montaggio.inizio, c.montaggio.fine].filter(Boolean).join(' – ')}{(c.montaggio.inizio || c.montaggio.fine) ? ' — ' : ''}{getSetupTitle(c.montaggio, true)}
+              </Text>
+              <PDFMomentDetails moment={c.montaggio} english />
+            </View>
+          </View>
         ) : null}
         {momenti.map((m, i) => (
           <View key={i} style={pdfStyles.bulletRow}>
             <Text style={pdfStyles.bulletDot}>•</Text>
             <View style={{ flex: 1 }}>
-              <Text style={pdfStyles.bulletText}>
+              <Text style={pdfStyles.momentoLine}>
                 {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live performance "${m.titolo}"` : ''}
               </Text>
               <PDFMomentDetails moment={m} english />
@@ -2521,7 +2778,7 @@ function ContractPDF_EN({ data, logoPng }) {
 
         {/* 2. Services */}
         <Text style={pdfStyles.sectionHeader}>2. IMD SERVICES</Text>
-        <Text style={pdfStyles.clauseText}>2.1 Meals (hot meal or buffet as agreed) for musicians {escludiVitto ? "are charged to the Client." : includVitto ? "are included in the compensation." : "are to be agreed upon separately."}</Text>
+        <Text style={pdfStyles.clauseText}>2.1 Meals (hot meal or buffet as agreed) for musicians {escludiVitto ? "are charged to the Client." : includVitto ? "are included in the compensation." : "are to be agreed upon separately."}{escludiVitto ? " Should the meal arrangements not be honored, the fee will increase by € 50.00 (VAT excluded) for each IMD team member present at the event." : ""}</Text>
         <Text style={pdfStyles.clauseText}>2.2 IMD may substitute additional musicians in case of unforeseen circumstances, except for the lead performer {c.nomeFrontman || IMD_INFO.referente}.</Text>
         <Text style={pdfStyles.clauseText}>2.3 IMD reserves the right to interrupt or decline performance if adverse weather or logistical conditions jeopardize the safety of musicians, instruments, or electrical equipment. In the event of outdoor performance, a covered and protected area from rain and direct sunlight must be provided by the Client.</Text>
         <Text style={pdfStyles.clauseText}>2.4 The musical repertoire will be chosen autonomously by IMD; the Client may suggest preferred songs from the repertoire. </Text>
@@ -2714,7 +2971,7 @@ function PrintView({ quote, onBack }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = buildPdfFileName('Preventivo', quote.client, quote.date, language);
+      a.download = buildPdfFileName('Preventivo', quote.client, quote.date);
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2918,10 +3175,16 @@ function ContractForm({ quote, onBack, onSave }) {
   const fd = quote.formData || {};
   const saved = fd.contractData || {};
   const momentiPreventivo = fd.momenti || [];
-  const momentiIniziali = (saved.momenti || momentiPreventivo).map(m => ({
-    ...m,
-    minutiPausa: m.minutiPausa ?? saved.minutiPausa ?? '',
-  }));
+  // Il contratto riprende i momenti del preventivo senza i link; poi restano modificabili
+  const withoutLink = (m) => { const copy = { ...m }; delete copy.link; return copy; };
+  const momentiIniziali = saved.momenti
+    ? saved.momenti.map(withoutLink)
+    : momentiPreventivo.map(m => ({ ...withoutLink(m), descrizione: stripUrls(m.descrizione) }));
+  const montaggioIniziale = saved.montaggio
+    ? { ...withoutLink(saved.montaggio), attivo: hasSetupContent(saved.montaggio) }
+    : saved.orarioMontaggio
+      ? { ...DEFAULT_MONTAGGIO, attivo: true, inizio: saved.orarioMontaggio }
+      : { ...DEFAULT_MONTAGGIO, ...withoutLink(fd.montaggio || {}), attivo: hasSetupContent(fd.montaggio), descrizione: stripUrls(fd.montaggio?.descrizione) };
 
   const oraInizio = momentiIniziali.find(m => m?.inizio)?.inizio || '';
   const oraFine = [...momentiIniziali].reverse().find(m => m?.fine)?.fine || '';
@@ -2940,7 +3203,6 @@ function ContractForm({ quote, onBack, onSave }) {
     // Orari (derivati dai momenti)
     oraInizio,
     oraFine,
-    orarioMontaggio: '',
     durataOre: computeDurataOre(oraInizio, oraFine),
     // Formazione (precompilata dal preventivo)
     strumentiFormazione: '',
@@ -2962,7 +3224,7 @@ function ContractForm({ quote, onBack, onSave }) {
     inclusoAltro: '', // testo delle inclusioni personalizzate
     esclusoAltro: '', // testo delle esclusioni personalizzate
     // Economico (default: prezzo lordo, aggiustabile col concordato)
-    compensoTotale: quote.prezzoLordo ?? quote.total ?? '',
+    compensoTotale: fd._isBlankContract ? '' : (quote.prezzoLordo ?? quote.total ?? ''),
     importoAcconto: fd.acconto || 0,
     giorniAcconto: 5,
     mostraIva: true,
@@ -2970,10 +3232,15 @@ function ContractForm({ quote, onBack, onSave }) {
     causaleBonifico: '',
     // Sovrascrivi con i dati del contratto gia' salvati (se presenti)
     ...saved,
+    montaggio: montaggioIniziale,
     momenti: momentiIniziali,
   });
 
   const momenti = data.momenti || [];
+
+  const handleMontaggioField = (field, value) => {
+    setData(prev => ({ ...prev, montaggio: { ...prev.montaggio, [field]: value } }));
+  };
 
   const handle = (e) => {
     const { name, value, type, checked } = e.target;
@@ -3004,7 +3271,7 @@ function ContractForm({ quote, onBack, onSave }) {
     setData(prev => {
       const nextMomenti = [...(prev.momenti || [])];
       if (delta > 0) {
-        nextMomenti.push({ titolo: '', descrizione: '', link: '', minutiPausa: '', inizio: '', fine: '' });
+        nextMomenti.push({ titolo: '', descrizione: '', numPause: '', minutiPausa: '', inizio: '', fine: '' });
       } else if (nextMomenti.length > 1) {
         nextMomenti.pop();
       }
@@ -3083,8 +3350,7 @@ function ContractForm({ quote, onBack, onSave }) {
       a.download = buildPdfFileName(
         'Contratto',
         data.nomeCliente || quote.client,
-        data.dataEvento || quote.date,
-        contractLanguage
+        data.dataEvento || quote.date
       );
       a.click();
       URL.revokeObjectURL(url);
@@ -3101,9 +3367,9 @@ function ContractForm({ quote, onBack, onSave }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText size={22} className="text-purple-600" /> Contratto — {quote.client}
+            <FileText size={22} className="text-purple-600" /> Contratto — {data.nomeCliente || quote.client || 'Nuovo contratto'}
           </h2>
-          <p className="text-slate-500 text-sm">Precompilato dal preventivo {quote.id}. Completa i dati mancanti.</p>
+          <p className="text-slate-500 text-sm">{fd._isBlankContract ? 'Contratto bianco: compila tutti i dati.' : `Precompilato dal preventivo ${quote.id}. Completa i dati mancanti.`}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-2">
@@ -3171,13 +3437,32 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Ora Inizio" name="oraInizio" value={data.oraInizio} onChange={handle} />
           <ContractField label="Ora Fine" name="oraFine" value={data.oraFine} onChange={handle} />
           <ContractField label="Durata (ore)" name="durataOre" value={data.durataOre} onChange={handle} />
-          <ContractField label="Orario Montaggio" name="orarioMontaggio" value={data.orarioMontaggio} onChange={handle} />
-          <div className="md:col-span-2 -mt-2">
-            <p className="text-xs text-slate-500">Inserisci manualmente l&apos;orario di montaggio e soundcheck.</p>
-          </div>
           <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programma (modificabile)</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={hasSetupContent(data.montaggio)} onChange={e => handleMontaggioField('attivo', e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <span className="text-xs font-semibold text-slate-500 uppercase">Montaggio e soundcheck</span>
+              </label>
+              {hasSetupContent(data.montaggio) && (
+              <>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-slate-500">
+                  Dalle
+                  <input type="text" value={data.montaggio?.inizio || ''} onChange={e => handleMontaggioField('inizio', e.target.value)} placeholder="es. 16:00" className="mt-1 w-full px-2 py-2 border border-slate-300 rounded-lg text-sm text-slate-700" />
+                </label>
+                <label className="text-xs text-slate-500">
+                  Alle
+                  <input type="text" value={data.montaggio?.fine || ''} onChange={e => handleMontaggioField('fine', e.target.value)} placeholder="es. 17:00" className="mt-1 w-full px-2 py-2 border border-slate-300 rounded-lg text-sm text-slate-700" />
+                </label>
+              </div>
+              <input type="text" value={data.montaggio?.titolo ?? ''} onChange={e => handleMontaggioField('titolo', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              <textarea rows={2} value={data.montaggio?.descrizione || ''} onChange={e => handleMontaggioField('descrizione', e.target.value)} placeholder="Note su montaggio e soundcheck (facoltative)" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm resize-y" />
+              </>
+              )}
+            </div>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programma live (modificabile)</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Momenti live</p>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => handleContractMomentCount(-1)} disabled={momenti.length <= 1} className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold disabled:opacity-40">−</button>
                 <span className="text-xs text-slate-500">{momenti.length} momenti</span>
@@ -3200,10 +3485,13 @@ function ContractForm({ quote, onBack, onSave }) {
                 <input type="text" value={m.titolo || ''} onChange={e => handleMomentField(i, 'titolo', e.target.value)} placeholder="Titolo del momento" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 <textarea rows={2} value={m.descrizione || ''} onChange={e => handleMomentField(i, 'descrizione', e.target.value)} placeholder="Descrizione del momento" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm resize-y" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <input type="url" value={m.link || ''} onChange={e => handleMomentField(i, 'link', e.target.value)} placeholder="Link al momento (facoltativo)" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                   <label className="text-xs text-slate-500">
-                    Pausa max (minuti, facoltativa)
-                    <input type="number" min="0" value={m.minutiPausa ?? ''} onChange={e => handleMomentField(i, 'minutiPausa', e.target.value === '' ? '' : Number(e.target.value))} placeholder="es. 20" className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                    Numero pause (facoltativo)
+                    <input type="text" value={m.numPause ?? ''} onChange={e => handleMomentField(i, 'numPause', e.target.value)} placeholder="es. 2" className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    Durata pausa (facoltativa)
+                    <input type="text" value={m.minutiPausa ?? ''} onChange={e => handleMomentField(i, 'minutiPausa', e.target.value)} placeholder="es. 20 (minuti) o 15-20 minuti" className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                   </label>
                 </div>
               </div>
@@ -3375,6 +3663,7 @@ function MusicianPayments({ quotes, onBack, onSave }) {
 
   useEffect(() => {
     if (!selectedQuote) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPayments([]);
       return;
     }
@@ -3486,6 +3775,7 @@ export default function App() {
   // In locale bypassa l'auth; in produzione usa Supabase Magic Link
   useEffect(() => {
     if (import.meta.env.DEV) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuthLoading(false);
       return;
     }
@@ -3532,6 +3822,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (import.meta.env.DEV || session) fetchQuotes();
   }, [session, fetchQuotes]);
 
@@ -3555,18 +3846,21 @@ export default function App() {
     setQuotes(quotes.map(q => q.id === id ? { ...q, status: 'Approvato' } : q));
   };
 
-  const handleArchive = async (id) => {
+  const updateQuoteStatus = async (id, status) => {
     if (import.meta.env.DEV) {
-      const updated = quotes.map(q => q.id === id ? { ...q, status: 'Archiviato' } : q);
+      const updated = quotes.map(q => q.id === id ? { ...q, status } : q);
       setQuotes(updated); devSave(updated); return;
     }
-    const { error } = await supabase.from('quotes').update({ status: 'Archiviato' }).eq('id', id);
+    const { error } = await supabase.from('quotes').update({ status }).eq('id', id);
     if (error) {
       alert('Errore: ' + error.message);
       return;
     }
-    setQuotes(quotes.map(q => q.id === id ? { ...q, status: 'Archiviato' } : q));
+    setQuotes(quotes.map(q => q.id === id ? { ...q, status } : q));
   };
+
+  const handleArchive = (id) => updateQuoteStatus(id, 'Archiviato');
+  const handleRestore = (id) => updateQuoteStatus(id, 'In attesa');
 
   const handleDelete = async (id) => {
     const quote = quotes.find(q => q.id === id);
@@ -3722,21 +4016,69 @@ export default function App() {
     setCurrentView('contract');
   };
 
+  // Contratto bianco: la riga viene creata nel database solo al primo salvataggio,
+  // cosi' chiudendo senza compilare nulla non resta nessun record vuoto.
+  const handleCreateBlankContract = () => {
+    const id = `CTR-${Date.now().toString(36).toUpperCase()}`;
+    setSelectedQuote({
+      id,
+      client: '',
+      type: 'Contratto',
+      date: '',
+      location: '',
+      total: 0,
+      prezzoLordo: 0,
+      scontoPerTe: 0,
+      status: 'Approvato',
+      formData: {
+        _isBlankContract: true,
+        _quoteGroupId: id,
+        _quoteVersion: 1,
+        _createdAt: new Date().toISOString(),
+        momenti: [{ titolo: '', descrizione: '', numPause: '', minutiPausa: '', inizio: '', fine: '' }],
+        montaggio: { ...DEFAULT_MONTAGGIO },
+        numMusicisti: '',
+        numImpianti: 0,
+        numPasti: '',
+        acconto: 0,
+      },
+    });
+    setCurrentView('contract');
+  };
+
   // Salva i dati del contratto dentro form_data.contractData del preventivo
   const handleSaveContract = async (quoteId, contractData) => {
-    const quote = quotes.find(q => q.id === quoteId);
+    const existing = quotes.find(q => q.id === quoteId);
+    const quote = existing || (selectedQuote?.id === quoteId ? selectedQuote : null);
     if (!quote) return;
     const mergedFormData = { ...(quote.formData || {}), contractData };
+    // Per i contratti bianchi i dati di elenco seguono quelli del contratto
+    const updatedQuote = quote.formData?._isBlankContract
+      ? {
+          ...quote,
+          client: contractData.nomeCliente || 'Nuovo contratto',
+          date: contractData.dataEvento || '',
+          location: contractData.indirizzoLocation || contractData.nomeLocation || '',
+          formData: mergedFormData,
+        }
+      : { ...quote, formData: mergedFormData };
     if (import.meta.env.DEV) {
-      const updated = quotes.map(q => q.id === quoteId ? { ...q, formData: mergedFormData } : q);
+      const updated = existing
+        ? quotes.map(q => q.id === quoteId ? updatedQuote : q)
+        : [...quotes, updatedQuote];
       setQuotes(updated); devSave(updated);
-      setSelectedQuote(prev => prev && prev.id === quoteId ? { ...prev, formData: mergedFormData } : prev);
+      setSelectedQuote(prev => prev && prev.id === quoteId ? updatedQuote : prev);
       return;
     }
-    const { error } = await supabase.from('quotes').update({ form_data: mergedFormData }).eq('id', quoteId);
+    const { formData, ...rest } = updatedQuote;
+    const { error } = existing
+      ? await supabase.from('quotes').update({ ...rest, form_data: formData }).eq('id', quoteId)
+      : await supabase.from('quotes').upsert({ ...rest, form_data: formData }, { onConflict: 'id' });
     if (error) throw error;
-    setQuotes(quotes.map(q => q.id === quoteId ? { ...q, formData: mergedFormData } : q));
-    setSelectedQuote(prev => prev && prev.id === quoteId ? { ...prev, formData: mergedFormData } : prev);
+    setQuotes(current => current.some(q => q.id === quoteId)
+      ? current.map(q => q.id === quoteId ? updatedQuote : q)
+      : [...current, updatedQuote]);
+    setSelectedQuote(prev => prev && prev.id === quoteId ? updatedQuote : prev);
   };
 
   const handleSaveMusicianPayments = async (quoteId, musicianPayments) => {
@@ -3817,10 +4159,12 @@ export default function App() {
             quotes={quotes}
             onApprove={handleApprove}
             onArchive={handleArchive}
+            onRestore={handleRestore}
             onDelete={handleDelete}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
             onCreateNew={() => setCurrentView('create')}
+            onCreateBlankContract={handleCreateBlankContract}
             onPrint={handlePrint}
             onCreateContract={handleCreateContract}
             onOpenAnalytics={() => setCurrentView('analytics')}

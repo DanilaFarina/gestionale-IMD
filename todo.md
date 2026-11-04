@@ -21,3 +21,4 @@ Per il prezzo, prendere il prezzo lordo come default, ma aggiustare con quello c
 NOME
 data_prev_nomecliente
 data_contr_nomecliente
+
