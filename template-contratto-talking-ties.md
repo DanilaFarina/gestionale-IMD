@@ -57,12 +57,9 @@ FORMULE ORARI (derivate dai momenti del preventivo):
 | Anticipo rispetto all’orario previsto | Maggiorazione sul compenso totale pattuito |
 |---|---|
 | Fino a 30 minuti | Nessuna maggiorazione |
-| Da 31 minuti a 1 ora | 8% |
-| Da 1 ora e 1 minuto a 1 ora e 30 minuti | 16% |
-| Da 1 ora e 31 minuti a 2 ore | 24% |
-| Da 2 a 3 ore | 32% |
-| Da 3 a 4 ore | 40% |
-| Oltre 4 ore | 50% |
+| Da 31 minuti a 1 ora e 30 minuti | 10% |
+| Da 1 ora e 31 minuti a 3 ore | 20% |
+| Oltre 3 ore | 30% |
 
 3.5 Ritardi sugli orari dell’evento: nel caso in cui si verifichi un ritardo rispetto agli orari dell’art. 1.2 per cause non imputabili a IMD, il compenso totale pattuito all’art. 4.1 aumenta progressivamente secondo la tabella:
 

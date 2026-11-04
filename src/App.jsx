@@ -38,7 +38,6 @@ import {
   LogOut,
   Mail,
   FileText,
-  Copy,
   BarChart3,
   TrendingUp,
   Wallet,
@@ -127,6 +126,16 @@ function formatMultiplier(value) {
 // ==========================================
 const getQuoteGroupId = (quote) => quote.formData?._quoteGroupId || quote.id;
 const getQuoteVersion = (quote) => Number(quote.formData?._quoteVersion) || 1;
+// Versione 1 -> A, 2 -> B, ... 27 -> AA
+const getQuoteLabel = (quote) => {
+  let n = getQuoteVersion(quote);
+  let label = '';
+  while (n > 0) {
+    label = String.fromCharCode(65 + ((n - 1) % 26)) + label;
+    n = Math.floor((n - 1) / 26);
+  }
+  return label;
+};
 const getQuoteCreatedAt = (quote) => quote.formData?._createdAt || '';
 const getQuoteTotal = (quote) => Number(quote.formData?.contractData?.compensoTotale ?? quote.prezzoLordo ?? quote.total ?? 0);
 
@@ -171,8 +180,8 @@ const fileDatePart = (value) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : fileNamePart(date, 'SenzaData');
 };
 
-const buildPdfFileName = (type, client, date) =>
-  `${fileDatePart(date)}_${fileNamePart(client, 'Cliente')}_${type}.pdf`;
+const buildPdfFileName = (type, client, date, suffix = '') =>
+  `${fileDatePart(date)}_${fileNamePart(client, 'Cliente')}_${type}${suffix ? `_${suffix}` : ''}.pdf`;
 
 function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
   const [clientFilter, setClientFilter] = useState('');
@@ -475,7 +484,7 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                     <td className={`py-4 ${isChild ? 'pl-12 pr-6' : 'px-6'}`}>
                       {isChild ? (
                         <>
-                          <div className="font-semibold text-slate-800">Preventivo v{getQuoteVersion(quote)} <span className="font-normal text-xs text-slate-400 ml-1">{quote.id}</span></div>
+                          <div className="font-semibold text-slate-800">Preventivo {getQuoteLabel(quote)} <span className="font-normal text-xs text-slate-400 ml-1">{quote.id}</span></div>
                           <div className="text-slate-500 text-xs mt-1">
                             Creato il {getQuoteCreatedAt(quote) ? new Date(getQuoteCreatedAt(quote)).toLocaleDateString('it-IT') : 'data non disponibile'}
                           </div>
@@ -525,6 +534,16 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                             <FileText size={18} />
                           </button>
                         )}
+                        {quote.status === 'Approvato' && !quote.formData?._isBlankContract && (
+                          <button
+                            type="button"
+                            onClick={() => onRestore(quote.id)}
+                            title="Annulla approvazione"
+                            className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
+                          >
+                            <RotateCcw size={18} />
+                          </button>
+                        )}
                         {quote.status === 'In attesa' && (
                           <button
                             type="button"
@@ -547,10 +566,10 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                         <button
                           type="button"
                           onClick={() => onDuplicate(quote.id)}
-                          title="Duplica Preventivo"
+                          title="Aggiungi nuova versione di preventivo"
                           className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-colors"
                         >
-                          <Copy size={18} />
+                          <Plus size={18} />
                         </button>
                         )}
                         {quote.status === 'Archiviato' && (
@@ -567,10 +586,10 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                           <button
                             type="button"
                             onClick={() => onArchive(quote.id)}
-                            title="Archivia / Cestina"
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Archivia"
+                            className="p-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
                           >
-                            <Trash2 size={18} />
+                            <Mail size={18} />
                           </button>
                         )}
                         <button
@@ -579,7 +598,7 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                           title="Elimina definitivamente"
                           className="p-2 text-red-700 hover:bg-red-100 rounded-lg transition-colors"
                         >
-                          <XCircle size={18} />
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
@@ -1135,7 +1154,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = buildPdfFileName('Preventivo', quote.client, quote.date);
+      a.download = buildPdfFileName('Preventivo', quote.client, quote.date, getQuoteLabel(quote));
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2134,12 +2153,9 @@ const SURCHARGES = {
     ritardoHead: ['Ritardo rispetto all’orario previsto', 'Maggiorazione sul compenso totale pattuito'],
     anticipo: [
       ['Fino a 30 minuti', 'Nessuna maggiorazione'],
-      ['Da 31 minuti a 1 ora', '8%'],
-      ['Da 1 ora e 1 minuto a 1 ora e 30 minuti', '16%'],
-      ['Da 1 ora e 31 minuti a 2 ore', '24%'],
-      ['Da 2 a 3 ore', '32%'],
-      ['Da 3 a 4 ore', '40%'],
-      ['Oltre 4 ore', '50%'],
+      ['Da 31 minuti a 1 ora e 30 minuti', '10%'],
+      ['Da 1 ora e 31 minuti a 3 ore', '20%'],
+      ['Oltre 3 ore', '30%'],
     ],
     ritardo: [
       ['Fino a 30 minuti', 'Nessuna maggiorazione'],
@@ -2154,12 +2170,9 @@ const SURCHARGES = {
     ritardoHead: ['Delay relative to the scheduled time', 'Surcharge on the total agreed fee'],
     anticipo: [
       ['Up to 30 minutes', 'No surcharge'],
-      ['From 31 minutes to 1 hour', '8%'],
-      ['From 1 hour 1 minute to 1 hour 30 minutes', '16%'],
-      ['From 1 hour 31 minutes to 2 hours', '24%'],
-      ['From 2 to 3 hours', '32%'],
-      ['From 3 to 4 hours', '40%'],
-      ['Over 4 hours', '50%'],
+      ['From 31 minutes to 1 hour 30 minutes', '10%'],
+      ['From 1 hour 31 minutes to 3 hours', '20%'],
+      ['Over 3 hours', '30%'],
     ],
     ritardo: [
       ['Up to 30 minutes', 'No surcharge'],
@@ -3180,7 +3193,7 @@ function PrintView({ quote, onBack }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = buildPdfFileName('Preventivo', quote.client, quote.date);
+      a.download = buildPdfFileName('Preventivo', quote.client, quote.date, getQuoteLabel(quote));
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
