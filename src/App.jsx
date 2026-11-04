@@ -1935,6 +1935,13 @@ const pdfStyles = StyleSheet.create({
   bulletDot: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', width: 10 },
   bulletText: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', flex: 1, lineHeight: 1.4 },
   momentoLine: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', lineHeight: 1.4 },
+  tableBox: { marginTop: 2, marginBottom: 8, borderWidth: 0.5, borderColor: '#a8a29e' },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#a8a29e' },
+  tableRowLast: { flexDirection: 'row' },
+  tableHeadCell: { fontFamily: 'Heiti', fontSize: PDF_FS, fontWeight: 'bold', color: '#000000', backgroundColor: '#fafaf9', padding: 4 },
+  tableCell: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', padding: 4 },
+  tableColLabel: { flex: 3 },
+  tableColValue: { flex: 2, borderLeftWidth: 0.5, borderLeftColor: '#a8a29e' },
   twoColLeft: { flex: 1, marginRight: 14 },
   twoColRight: { flex: 1 },
   colSubHeader: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', letterSpacing: 1, marginBottom: 6 },
@@ -1971,6 +1978,67 @@ function PDFMomentDetails({ moment, english = false, linkify = false }) {
     </>
   );
 }
+
+function PDFSurchargeTable({ head, rows }) {
+  return (
+    <View style={pdfStyles.tableBox} wrap={false}>
+      <View style={pdfStyles.tableRow}>
+        <Text style={[pdfStyles.tableHeadCell, pdfStyles.tableColLabel]}>{head[0]}</Text>
+        <Text style={[pdfStyles.tableHeadCell, pdfStyles.tableColValue]}>{head[1]}</Text>
+      </View>
+      {rows.map(([label, value], i) => (
+        <View key={i} style={i === rows.length - 1 ? pdfStyles.tableRowLast : pdfStyles.tableRow}>
+          <Text style={[pdfStyles.tableCell, pdfStyles.tableColLabel]}>{label}</Text>
+          <Text style={[pdfStyles.tableCell, pdfStyles.tableColValue]}>{value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// Maggiorazioni sul compenso per anticipo di montaggio e ritardi (art. 3.4 e 3.5)
+const SURCHARGES = {
+  it: {
+    anticipoHead: ['Anticipo rispetto all’orario previsto', 'Maggiorazione sul compenso totale pattuito'],
+    ritardoHead: ['Ritardo rispetto all’orario previsto', 'Maggiorazione sul compenso totale pattuito'],
+    anticipo: [
+      ['Fino a 30 minuti', 'Nessuna maggiorazione'],
+      ['Da 31 minuti a 1 ora', '8%'],
+      ['Da 1 ora e 1 minuto a 1 ora e 30 minuti', '16%'],
+      ['Da 1 ora e 31 minuti a 2 ore', '24%'],
+      ['Da 2 a 3 ore', '32%'],
+      ['Da 3 a 4 ore', '40%'],
+      ['Oltre 4 ore', '50%'],
+    ],
+    ritardo: [
+      ['Fino a 30 minuti', 'Nessuna maggiorazione'],
+      ['Da 31 minuti a 1 ora', '8%'],
+      ['Da 1 ora e 1 minuto a 1 ora e 30 minuti', '16%'],
+      ['Da 1 ora e 31 minuti a 2 ore', '24%'],
+      ['Oltre 2 ore', '30%'],
+    ],
+  },
+  en: {
+    anticipoHead: ['Advance relative to the scheduled time', 'Surcharge on the total agreed fee'],
+    ritardoHead: ['Delay relative to the scheduled time', 'Surcharge on the total agreed fee'],
+    anticipo: [
+      ['Up to 30 minutes', 'No surcharge'],
+      ['From 31 minutes to 1 hour', '8%'],
+      ['From 1 hour 1 minute to 1 hour 30 minutes', '16%'],
+      ['From 1 hour 31 minutes to 2 hours', '24%'],
+      ['From 2 to 3 hours', '32%'],
+      ['From 3 to 4 hours', '40%'],
+      ['Over 4 hours', '50%'],
+    ],
+    ritardo: [
+      ['Up to 30 minutes', 'No surcharge'],
+      ['From 31 minutes to 1 hour', '8%'],
+      ['From 1 hour 1 minute to 1 hour 30 minutes', '16%'],
+      ['From 1 hour 31 minutes to 2 hours', '24%'],
+      ['Over 2 hours', '30%'],
+    ],
+  },
+};
 
 // Dati aziendali IMD (uniformi ai preventivi)
 const IMD_INFO = {
@@ -2345,6 +2413,11 @@ function ContractPDF({ data, logoPng }) {
         <Text style={pdfStyles.clauseText}>3.1 Eventuali prolungamenti di orario o servizi aggiuntivi rispetto a quanto pattuito comporteranno supplementi di prezzo, comunicati da IMD e pagati dal Cliente.</Text>
         <Text style={pdfStyles.clauseText}>3.2 Le parti restano vincolate esclusivamente alle prestazioni, ai luoghi, alle date e agli orari indicati nel presente contratto.</Text>
         <Text style={pdfStyles.clauseText}>3.3 IMD si impegna a raggiungere la location in tempo utile per il montaggio e il sound check.</Text>
+        <Text style={pdfStyles.clauseText}>3.4 Allestimento anticipato: nel caso in cui sia richiesto un orario di montaggio anticipato rispetto all&apos;orario indicato all&apos;art. 1.2, il compenso totale pattuito all&apos;art. 4.1 aumenta progressivamente secondo la tabella:</Text>
+        <PDFSurchargeTable head={SURCHARGES.it.anticipoHead} rows={SURCHARGES.it.anticipo} />
+        <Text style={pdfStyles.clauseText}>3.5 Ritardi sugli orari dell&apos;evento: nel caso in cui si verifichi un ritardo rispetto agli orari dell&apos;art. 1.2 per cause non imputabili a IMD, il compenso totale pattuito all&apos;art. 4.1 aumenta progressivamente secondo la tabella:</Text>
+        <PDFSurchargeTable head={SURCHARGES.it.ritardoHead} rows={SURCHARGES.it.ritardo} />
+        <Text style={pdfStyles.clauseText}>3.6 IMD si impegna a comunicare al Cliente le maggiorazioni previste dagli {escludiVitto ? 'artt. 2.1, 3.4 e 3.5' : 'artt. 3.4 e 3.5'}, e il Cliente si impegna a liquidarle al momento del saldo.</Text>
 
         {/* 4. Corrispettivo */}
         <Text style={pdfStyles.sectionHeader}>4. CORRISPETTIVO E SPESE</Text>
@@ -2810,6 +2883,11 @@ function ContractPDF_EN({ data, logoPng }) {
         <Text style={pdfStyles.clauseText}>3.1 Any extensions of time or additional services beyond what agreed will result in additional charges, to be communicated by IMD and paid by the Client.</Text>
         <Text style={pdfStyles.clauseText}>3.2 The parties are bound exclusively to the services, locations, dates and times indicated in this contract.</Text>
         <Text style={pdfStyles.clauseText}>3.3 IMD commits to arrive at the venue in time for setup and sound check.</Text>
+        <Text style={pdfStyles.clauseText}>3.4 Early setup: if an earlier setup time than the one indicated in art. 1.2 is requested, the total fee agreed in art. 4.1 increases progressively according to the following table:</Text>
+        <PDFSurchargeTable head={SURCHARGES.en.anticipoHead} rows={SURCHARGES.en.anticipo} />
+        <Text style={pdfStyles.clauseText}>3.5 Delays: if there is a delay relative to the times set out in art. 1.2 for reasons not attributable to IMD, the total fee agreed in art. 4.1 increases progressively according to the following table:</Text>
+        <PDFSurchargeTable head={SURCHARGES.en.ritardoHead} rows={SURCHARGES.en.ritardo} />
+        <Text style={pdfStyles.clauseText}>3.6 IMD commits to inform the Client of the surcharges provided for in {escludiVitto ? 'arts. 2.1, 3.4 and 3.5' : 'arts. 3.4 and 3.5'}, and the Client commits to pay them at the time of the final payment.</Text>
 
         {/* 4. Compensation */}
         <Text style={pdfStyles.sectionHeader}>4. COMPENSATION AND EXPENSES</Text>

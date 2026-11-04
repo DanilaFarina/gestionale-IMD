@@ -39,11 +39,11 @@ FORMULE ORARI (derivate dai momenti del preventivo):
 ---
 
 ### 2. PRESTAZIONI DEL GRUPPO
-2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti del Gruppo è a carico del Cliente.
+2.1 Il vitto (pasto caldo o buffet a seconda degli accordi) per i musicisti del Gruppo è a carico del Cliente. In caso di non adempimento degli gli accordi sul vitto il compenso aumenta di € 50,00 (iva esclusa) per ogni persona di IMD presente all’evento.
 2.2 Il Gruppo può sostituire i musicisti titolari in caso di impedimento, ad eccezione di Giovanni Gargini.
 2.3 Il Gruppo può interrompere o non svolgere l'esibizione qualora condizioni meteorologiche avverse o logistiche mettano a rischio l'incolumità dei musicisti, gli strumenti musicali o le apparecchiature elettriche. In caso di esibizione all'aperto, dovrà essere garantita una postazione coperta e protetta da pioggia e sole diretto.
 2.4 Il repertorio musicale sarà scelto autonomamente dal Gruppo; il Cliente potrà proporre brani preferenziali o concordare richieste specifiche in anticipo.
-2.5 La formazione del Gruppo per l'evento sarà composta da {{STRUMENTI_FORMAZIONE}} (es. tromba, voce, washboard, contrabbasso, pianoforte, ecc.) ({{NUMERO_MUSICISTI}} musicisti): 
+2.5 La formazione del Gruppo per l'evento sarà composta da {{STRUMENTI_FORMAZIONE}} (es. tromba, voce, washboard, contrabbasso, pianoforte, ecc.) ({{NUMERO_MUSICISTI}} musicisti):
 2.6 (Se applicabile la variabile NUMERO_IMPIANTI_AUDIO>0: *Il Gruppo fornirà a proprie spese tutta l'attrezzatura audio/luci necessaria, (SE <0)): Il servizio audio/luci sarà fornito da un service esterno a carico del Cliente*).
 
 ---
@@ -52,7 +52,29 @@ FORMULE ORARI (derivate dai momenti del preventivo):
 3.1 Eventuali prolungamenti di orario o servizi aggiuntivi rispetto a quanto pattuito comporteranno supplementi di prezzo, che saranno comunicati dal Gruppo e pagati dal Cliente.
 3.2 Le parti restano vincolate esclusivamente alle prestazioni, ai luoghi, alle date e agli orari indicati nel presente contratto.
 3.3 Il Gruppo si impegna a raggiungere la location in tempo utile per il montaggio e il sound check.
+3.4 Allestimento anticipato: nel caso in cui sia richiesto un orario di montaggio anticipato rispetto all’orario indicato all’art. 1.2, il compenso totale pattuito all’art. 4.1 aumenta progressivamente secondo la tabella:
 
+| Anticipo rispetto all’orario previsto | Maggiorazione sul compenso totale pattuito |
+|---|---|
+| Fino a 30 minuti | Nessuna maggiorazione |
+| Da 31 minuti a 1 ora | 8% |
+| Da 1 ora e 1 minuto a 1 ora e 30 minuti | 16% |
+| Da 1 ora e 31 minuti a 2 ore | 24% |
+| Da 2 a 3 ore | 32% |
+| Da 3 a 4 ore | 40% |
+| Oltre 4 ore | 50% |
+
+3.5 Ritardi sugli orari dell’evento: nel caso in cui si verifichi un ritardo rispetto agli orari dell’art. 1.2 per cause non imputabili a IMD, il compenso totale pattuito all’art. 4.1 aumenta progressivamente secondo la tabella:
+
+| Ritardo rispetto all’orario previsto | Maggiorazione sul compenso totale pattuito |
+|---|---|
+| Fino a 30 minuti | Nessuna maggiorazione |
+| Da 31 minuti a 1 ora | 8% |
+| Da 1 ora e 1 minuto a 1 ora e 30 minuti | 16% |
+| Da 1 ora e 31 minuti a 2 ore | 24% |
+| Oltre 2 ore | 30% |
+
+3.6 IMD si impegna a comunicare al Cliente le maggiorazioni previste dagli artt. 2.1 bis, 3.4 e 3.5, e il Cliente si impegna a saldarle al momento del pagamento in aggiunta al saldo pattuito.
 ---
 
 ### 4. CORRISPETTIVO E SPESE
