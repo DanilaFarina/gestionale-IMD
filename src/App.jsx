@@ -43,7 +43,9 @@ import {
   TrendingUp,
   Wallet,
   CalendarDays,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
@@ -126,6 +128,28 @@ function formatMultiplier(value) {
 const getQuoteGroupId = (quote) => quote.formData?._quoteGroupId || quote.id;
 const getQuoteVersion = (quote) => Number(quote.formData?._quoteVersion) || 1;
 const getQuoteCreatedAt = (quote) => quote.formData?._createdAt || '';
+const getQuoteTotal = (quote) => Number(quote.formData?.contractData?.compensoTotale ?? quote.prezzoLordo ?? quote.total ?? 0);
+
+const QUOTE_STATUS_PRIORITY = { 'Approvato': 0, 'In attesa': 1, 'Archiviato': 2 };
+
+// Raggruppa i preventivi per evento (stesso _quoteGroupId), versioni in ordine crescente
+const groupQuotesByEvent = (quotes) => {
+  const groups = new Map();
+  quotes.forEach(quote => {
+    const groupId = getQuoteGroupId(quote);
+    if (!groups.has(groupId)) groups.set(groupId, []);
+    groups.get(groupId).push(quote);
+  });
+  groups.forEach(list => list.sort((a, b) =>
+    getQuoteVersion(a) - getQuoteVersion(b) || (Date.parse(getQuoteCreatedAt(a)) || 0) - (Date.parse(getQuoteCreatedAt(b)) || 0)));
+  return groups;
+};
+
+// Preventivo che rappresenta l'evento: quello approvato, altrimenti l'ultima versione attiva
+const pickGroupRepresentative = (list) => [...list].sort((a, b) =>
+  (QUOTE_STATUS_PRIORITY[a.status] ?? 3) - (QUOTE_STATUS_PRIORITY[b.status] ?? 3)
+  || getQuoteVersion(b) - getQuoteVersion(a)
+  || (Date.parse(getQuoteCreatedAt(b)) || 0) - (Date.parse(getQuoteCreatedAt(a)) || 0))[0];
 
 const EVENT_TYPE_LABELS = {
   Matrimonio: 'Matrimonio',
@@ -157,6 +181,7 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('Tutti');
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const eventTypeOptions = [...new Set([...Object.keys(EVENT_TYPE_LABELS), ...quotes.map(quote => quote.type).filter(Boolean)])]
     .map(value => ({ value, label: EVENT_TYPE_LABELS[value] || value }));
   const hasActiveFilters = Boolean(clientFilter || locationFilter || typeFilter !== 'Tutti' || dateFrom || dateTo);
@@ -192,6 +217,38 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
     if (status === 'Approvato') return 'bg-green-50/30';
     if (status === 'Archiviato') return 'opacity-60 bg-gray-50';
     return 'bg-white hover:bg-slate-50';
+  };
+
+  // Una riga per evento; i preventivi dello stesso evento stanno in un sotto-elenco espandibile
+  const eventGroups = [...groupQuotesByEvent(filteredQuotes).entries()]
+    .map(([groupId, list]) => ({ groupId, list, representative: pickGroupRepresentative(list) }))
+    .sort((a, b) => (Date.parse(getQuoteCreatedAt(b.list[b.list.length - 1])) || 0) - (Date.parse(getQuoteCreatedAt(a.list[a.list.length - 1])) || 0));
+
+  const tableRows = eventGroups.flatMap(({ groupId, list, representative }) => {
+    if (list.length === 1) return [{ kind: 'single', quote: list[0] }];
+    const rows = [{ kind: 'parent', groupId, list, representative }];
+    if (expandedGroups.has(groupId)) {
+      list.forEach(quote => rows.push({ kind: 'child', quote }));
+    }
+    return rows;
+  });
+
+  const toggleGroup = (groupId) => setExpandedGroups(prev => {
+    const next = new Set(prev);
+    if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+    return next;
+  });
+
+  const formatGroupTotal = (list) => {
+    const approved = list.find(quote => quote.status === 'Approvato');
+    if (approved) return `€${getQuoteTotal(approved).toLocaleString('it-IT')}`;
+    const totals = list.filter(quote => quote.status !== 'Archiviato').map(getQuoteTotal);
+    if (!totals.length) return `€${getQuoteTotal(list[0]).toLocaleString('it-IT')}`;
+    const min = Math.min(...totals);
+    const max = Math.max(...totals);
+    return min === max
+      ? `€${min.toLocaleString('it-IT')}`
+      : `€${min.toLocaleString('it-IT')} – €${max.toLocaleString('it-IT')}`;
   };
 
   return (
@@ -350,15 +407,88 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredQuotes.length > 0 ? (
-                filteredQuotes.map((quote) => (
-                  <tr key={quote.id} className={`transition-colors ${getRowHighlight(quote.status)}`}>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-900">{quote.client}</div>
-                      <div className="flex items-center text-slate-500 text-xs mt-1 gap-3">
-                        <span className="flex items-center gap-1"><Clock size={12} /> {quote.date || 'Da definire'}</span>
-                        <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location || 'Da definire'} ({quote.type})</span>
-                      </div>
+              {tableRows.length > 0 ? (
+                tableRows.map((row) => {
+                  if (row.kind === 'parent') {
+                    const { groupId, list, representative } = row;
+                    const expanded = expandedGroups.has(groupId);
+                    const approved = list.find(item => item.status === 'Approvato');
+                    const groupStatus = approved ? 'Approvato' : (list.some(item => item.status === 'In attesa') ? 'In attesa' : 'Archiviato');
+                    return (
+                      <tr
+                        key={`group-${groupId}`}
+                        className={`transition-colors cursor-pointer ${getRowHighlight(groupStatus)}`}
+                        onClick={() => toggleGroup(groupId)}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-start gap-2">
+                            <span className="mt-0.5 text-slate-400">{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</span>
+                            <div>
+                              <div className="font-semibold text-slate-900 flex items-center gap-2">
+                                {representative.client}
+                                <span className="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">{list.length} preventivi</span>
+                              </div>
+                              <div className="flex items-center text-slate-500 text-xs mt-1 gap-3">
+                                <span className="flex items-center gap-1"><Clock size={12} /> {representative.date || 'Da definire'}</span>
+                                <span className="flex items-center gap-1"><MapPin size={12} /> {representative.location || 'Da definire'} ({representative.type})</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{formatGroupTotal(list)}</td>
+                        <td className="px-3 py-4 text-center">
+                          <span title={groupStatus} className="inline-flex items-center justify-center">
+                            {groupStatus === 'Approvato' && <CheckCircle size={20} className="text-green-600" />}
+                            {groupStatus === 'In attesa' && <Clock size={20} className="text-yellow-500" />}
+                            {groupStatus === 'Archiviato' && <XCircle size={20} className="text-gray-400" />}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2">
+                            {approved && (
+                              <button
+                                type="button"
+                                onClick={() => onCreateContract(approved)}
+                                title="Crea Contratto (preventivo approvato)"
+                                className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
+                              >
+                                <FileText size={18} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(groupId)}
+                              className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                              {expanded ? 'Chiudi' : 'Mostra preventivi'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const quote = row.quote;
+                  const isChild = row.kind === 'child';
+                  return (
+                  <tr key={quote.id} className={`transition-colors ${quote.status === 'In attesa' && isChild ? 'bg-slate-50 hover:bg-slate-100' : getRowHighlight(quote.status)} ${isChild ? 'border-l-4 border-l-blue-300' : ''}`}>
+                    <td className={`py-4 ${isChild ? 'pl-12 pr-6' : 'px-6'}`}>
+                      {isChild ? (
+                        <>
+                          <div className="font-semibold text-slate-800">Preventivo v{getQuoteVersion(quote)} <span className="font-normal text-xs text-slate-400 ml-1">{quote.id}</span></div>
+                          <div className="text-slate-500 text-xs mt-1">
+                            Creato il {getQuoteCreatedAt(quote) ? new Date(getQuoteCreatedAt(quote)).toLocaleDateString('it-IT') : 'data non disponibile'}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-semibold text-slate-900">{quote.client}</div>
+                          <div className="flex items-center text-slate-500 text-xs mt-1 gap-3">
+                            <span className="flex items-center gap-1"><Clock size={12} /> {quote.date || 'Da definire'}</span>
+                            <span className="flex items-center gap-1"><MapPin size={12} /> {quote.location || 'Da definire'} ({quote.type})</span>
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-900">
                       €{Number(quote.formData?.contractData?.compensoTotale ?? quote.prezzoLordo ?? quote.total ?? 0).toLocaleString('it-IT')}
@@ -454,7 +584,8 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="4" className="px-6 py-16 text-center">
@@ -4299,15 +4430,61 @@ const formatEuro = (value) => `€ ${Number(value || 0).toLocaleString('it-IT', 
 
 const getAnalyticsEventDate = (quote) => quote.formData?.contractData?.dataEvento || quote.date || '';
 
+const getYear = (value) => {
+  const match = /^(\d{4})-\d{2}-\d{2}/.exec(String(value || ''));
+  return match ? match[1] : '';
+};
+
+const formatPercent = (part, total) => total > 0 ? `${(part / total * 100).toLocaleString('it-IT', { maximumFractionDigits: 1 })}%` : '—';
+
 function Analytics({ quotes, onBack }) {
+  const [createdYear, setCreatedYear] = useState('Tutti');
+  const [eventYear, setEventYear] = useState('Tutti');
+
+  const yearOptions = useMemo(() => {
+    const created = new Set();
+    const events = new Set();
+    quotes.forEach(quote => {
+      const createdValue = getYear(getQuoteCreatedAt(quote));
+      const eventValue = getYear(getAnalyticsEventDate(quote));
+      if (createdValue) created.add(createdValue);
+      if (eventValue) events.add(eventValue);
+    });
+    const sortDesc = (set) => [...set].sort((a, b) => b.localeCompare(a));
+    return { created: sortDesc(created), events: sortDesc(events) };
+  }, [quotes]);
+
   const analytics = useMemo(() => {
-    const latestQuotes = Array.from(
-      new Map(
-        [...quotes]
-          .sort((first, second) => (Date.parse(getQuoteCreatedAt(second)) || 0) - (Date.parse(getQuoteCreatedAt(first)) || 0))
-          .map(quote => [getQuoteGroupId(quote), quote])
-      ).values()
-    );
+    // Un evento rientra se la sua data è nell'anno scelto e almeno un suo preventivo è stato creato nell'anno scelto;
+    // l'esito dell'evento resta calcolato su tutti i suoi preventivi.
+    const groups = [...groupQuotesByEvent(quotes).values()]
+      .map(list => ({
+        list,
+        representative: pickGroupRepresentative(list),
+        countedQuotes: list.filter(quote => createdYear === 'Tutti' || getYear(getQuoteCreatedAt(quote)) === createdYear),
+      }))
+      .filter(group => group.countedQuotes.length > 0
+        && (eventYear === 'Tutti' || getYear(getAnalyticsEventDate(group.representative)) === eventYear));
+
+    const latestQuotes = groups.map(group => group.representative);
+
+    // I contratti bianchi non nascono da un preventivo: restano fuori dal funnel
+    const funnelGroups = groups.filter(group => !group.list.some(quote => quote.formData?._isBlankContract));
+    const funnelQuotes = funnelGroups.flatMap(group => group.countedQuotes);
+    const quoteCount = (status) => funnelQuotes.filter(quote => quote.status === status).length;
+    const eventsWon = funnelGroups.filter(group => group.list.some(quote => quote.status === 'Approvato')).length;
+    const eventsPending = funnelGroups.filter(group => !group.list.some(quote => quote.status === 'Approvato')
+      && group.list.some(quote => quote.status === 'In attesa')).length;
+    const funnel = {
+      quotesTotal: funnelQuotes.length,
+      quotesApproved: quoteCount('Approvato'),
+      quotesPending: quoteCount('In attesa'),
+      quotesArchived: quoteCount('Archiviato'),
+      eventsTotal: funnelGroups.length,
+      eventsWon,
+      eventsPending,
+      eventsLost: funnelGroups.length - eventsWon - eventsPending,
+    };
 
     const contracts = latestQuotes
       .filter(quote => quote.status === 'Approvato' && quote.formData?.contractData)
@@ -4347,16 +4524,14 @@ function Analytics({ quotes, onBack }) {
     });
 
     return {
+      funnel,
       contracts,
       grossRevenue,
       netRevenue,
-      activeQuotes: latestQuotes.filter(quote => quote.status !== 'Archiviato').length,
-      pendingQuotes: latestQuotes.filter(quote => quote.status === 'In attesa').length,
-      approvedQuotes: latestQuotes.filter(quote => quote.status === 'Approvato').length,
       clients: [...clients.values()].sort((first, second) => second.count - first.count || second.gross - first.gross).slice(0, 5),
       months: [...months.values()].sort((first, second) => first.key.localeCompare(second.key)).slice(-6),
     };
-  }, [quotes]);
+  }, [quotes, createdYear, eventYear]);
 
   const maxMonthlyGross = Math.max(...analytics.months.map(month => month.gross), 1);
   const recentContracts = [...analytics.contracts].sort((first, second) => String(second.eventDate).localeCompare(String(first.eventDate))).slice(0, 5);
@@ -4378,22 +4553,72 @@ function Analytics({ quotes, onBack }) {
         </div>
       </div>
 
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex flex-col sm:flex-row sm:items-end gap-4">
+        <label className="block">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Preventivi creati nel</span>
+          <select className="block w-full sm:w-44 px-3 py-2 border border-slate-300 rounded-lg bg-white" value={createdYear} onChange={(e) => setCreatedYear(e.target.value)}>
+            <option value="Tutti">Tutti gli anni</option>
+            {yearOptions.created.map(year => <option key={year} value={year}>{year}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Eventi con data nel</span>
+          <select className="block w-full sm:w-44 px-3 py-2 border border-slate-300 rounded-lg bg-white" value={eventYear} onChange={(e) => setEventYear(e.target.value)}>
+            <option value="Tutti">Tutti gli anni</option>
+            {yearOptions.events.map(year => <option key={year} value={year}>{year}</option>)}
+          </select>
+        </label>
+        {(createdYear !== 'Tutti' || eventYear !== 'Tutti') && (
+          <button type="button" onClick={() => { setCreatedYear('Tutti'); setEventYear('Tutti'); }} className="px-3 py-2 rounded-lg text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors">
+            Azzera filtri
+          </button>
+        )}
+        <p className="text-xs text-slate-400 sm:ml-auto sm:max-w-xs">I filtri valgono per tutta la pagina. I contratti bianchi non rientrano nei conteggi di preventivi ed eventi.</p>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold text-slate-900">Eventi richiesti</h2><CalendarDays size={20} className="text-blue-600" /></div>
+          <p className="text-4xl font-bold text-slate-900">{analytics.funnel.eventsTotal}</p>
+          <p className="text-xs text-slate-500 mt-1 mb-5">
+            eventi distinti{analytics.funnel.eventsTotal > 0 ? ` · ${(analytics.funnel.quotesTotal / analytics.funnel.eventsTotal).toLocaleString('it-IT', { maximumFractionDigits: 1 })} preventivi per evento in media` : ''}
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['Andati a contratto', analytics.funnel.eventsWon, 'text-green-700', 'bg-green-50'],
+              ['In attesa', analytics.funnel.eventsPending, 'text-amber-700', 'bg-amber-50'],
+              ['Non conclusi', analytics.funnel.eventsLost, 'text-slate-600', 'bg-slate-100'],
+            ].map(([label, value, textColor, bgColor]) => (
+              <div key={label} className={`${bgColor} rounded-lg p-3`}>
+                <p className="text-xs font-medium text-slate-500">{label}</p>
+                <p className={`text-2xl font-bold mt-1 ${textColor}`}>{value}</p>
+                <p className="text-xs text-slate-500">{formatPercent(value, analytics.funnel.eventsTotal)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold text-slate-900">Preventivi fatti</h2><Briefcase size={20} className="text-blue-600" /></div>
+          <p className="text-4xl font-bold text-slate-900">{analytics.funnel.quotesTotal}</p>
+          <p className="text-xs text-slate-500 mt-1 mb-5">tutte le versioni, archiviati inclusi</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              ['Approvati', analytics.funnel.quotesApproved, 'text-green-700', 'bg-green-50'],
+              ['In attesa', analytics.funnel.quotesPending, 'text-amber-700', 'bg-amber-50'],
+              ['Archiviati', analytics.funnel.quotesArchived, 'text-slate-600', 'bg-slate-100'],
+            ].map(([label, value, textColor, bgColor]) => (
+              <div key={label} className={`${bgColor} rounded-lg p-3`}>
+                <p className="text-xs font-medium text-slate-500">{label}</p>
+                <p className={`text-2xl font-bold mt-1 ${textColor}`}>{value}</p>
+                <p className="text-xs text-slate-500">{formatPercent(value, analytics.funnel.quotesTotal)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Preventivi attivi</span><Briefcase size={18} className="text-blue-600" /></div>
-          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.activeQuotes}</p>
-          <p className="text-xs text-slate-500 mt-1">ultime versioni non archiviate</p>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">In attesa</span><Clock size={18} className="text-amber-600" /></div>
-          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.pendingQuotes}</p>
-          <p className="text-xs text-slate-500 mt-1">in attesa di risposta</p>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Approvati</span><CheckCircle size={18} className="text-green-600" /></div>
-          <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.approvedQuotes}</p>
-          <p className="text-xs text-slate-500 mt-1">preventivi confermati</p>
-        </div>
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-500"><span className="text-sm font-medium">Eventi entrati</span><CalendarDays size={18} className="text-blue-600" /></div>
           <p className="text-3xl font-bold text-slate-900 mt-3">{analytics.contracts.length}</p>
