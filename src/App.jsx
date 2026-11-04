@@ -431,7 +431,7 @@ const subtractOneHour = (str) => {
   return a == null ? '' : minutesToTime(a - 60);
 };
 
-function QuoteForm({ onCancel, onSave, initialData }) {
+function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
   // Stato del form
   const defaults = {
     client: '',
@@ -492,6 +492,12 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   const suppressSuggestRef = useRef(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const logoPngRef = useRef('');
+  const quoteIdRef = useRef(initialData?._editId || null);
+
+  // Stato dell'autosalvataggio del preventivo (debounce ~1.5s dopo l'ultima modifica)
+  const [autosaveStatus, setAutosaveStatus] = useState('idle'); // idle | pending | saving | saved | error
+  const autosaveTimeoutRef = useRef(null);
+  const autosaveMountedRef = useRef(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -742,7 +748,12 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   }, [formData]);
 
   const buildQuote = () => {
-    const id = formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+    // L'id viene generato una sola volta e riusato (anche dall'autosalvataggio)
+    // cosi' da aggiornare sempre la stessa riga invece di crearne di nuove.
+    if (!quoteIdRef.current) {
+      quoteIdRef.current = formData._editId || `PRV-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+    }
+    const id = quoteIdRef.current;
     const quoteGroupId = formData._quoteGroupId || id;
 
     return {
@@ -767,8 +778,36 @@ function QuoteForm({ onCancel, onSave, initialData }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if(!formData.client) return alert("Inserisci almeno il nome del cliente!");
+    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
     onSave(buildQuote());
   };
+
+  // Autosalvataggio: ~1.5s dopo l'ultima modifica, salva silenziosamente senza
+  // lasciare la pagina. Al primo cambiamento utile crea la riga su Supabase,
+  // poi continua ad aggiornare la stessa riga (vedi quoteIdRef in buildQuote).
+  useEffect(() => {
+    if (!autosaveMountedRef.current) {
+      autosaveMountedRef.current = true;
+      return;
+    }
+    if (!onAutosave || !formData.client) return;
+
+    setAutosaveStatus('pending');
+    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
+    autosaveTimeoutRef.current = setTimeout(async () => {
+      setAutosaveStatus('saving');
+      try {
+        await onAutosave(buildQuote());
+        setAutosaveStatus('saved');
+      } catch (err) {
+        console.error('Errore autosalvataggio preventivo:', err);
+        setAutosaveStatus('error');
+      }
+    }, 1500);
+
+    return () => clearTimeout(autosaveTimeoutRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData]);
 
   const handleDownloadPdf = async () => {
     if (!formData.client) return alert("Inserisci almeno il nome del cliente!");
@@ -1550,6 +1589,15 @@ function QuoteForm({ onCancel, onSave, initialData }) {
                 </span>
               </div>
             </div>
+
+            {autosaveStatus !== 'idle' && (
+              <p className={`text-xs text-center -mb-2 ${autosaveStatus === 'error' ? 'text-red-500' : 'text-slate-400'}`}>
+                {autosaveStatus === 'pending' && 'Modifiche in sospeso...'}
+                {autosaveStatus === 'saving' && 'Salvataggio automatico in corso...'}
+                {autosaveStatus === 'saved' && 'Salvato automaticamente ✓'}
+                {autosaveStatus === 'error' && 'Errore nel salvataggio automatico'}
+              </p>
+            )}
 
             <button 
               type="submit"
@@ -2888,7 +2936,7 @@ function ContractForm({ quote, onBack, onSave }) {
   const [contractLanguage, setContractLanguage] = useState('IT');
   const logoPngRef = useRef('');
 
-  const handleSaveContract = async () => {
+  const persistContract = async ({ silent = false } = {}) => {
     setSaving(true);
     setSavedOk(false);
     try {
@@ -2900,11 +2948,29 @@ function ContractForm({ quote, onBack, onSave }) {
       setTimeout(() => setSavedOk(false), 2500);
     } catch (err) {
       console.error('Errore salvataggio contratto:', err);
-      alert('Errore nel salvataggio del contratto: ' + err.message);
+      if (!silent) alert('Errore nel salvataggio del contratto: ' + err.message);
     } finally {
       setSaving(false);
     }
   };
+
+  const handleSaveContract = () => persistContract();
+
+  // Autosalvataggio silenzioso: ~1.5s dopo l'ultima modifica del contratto.
+  const autosaveTimeoutRef = useRef(null);
+  const autosaveMountedRef = useRef(false);
+  useEffect(() => {
+    if (!autosaveMountedRef.current) {
+      autosaveMountedRef.current = true;
+      return;
+    }
+    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
+    autosaveTimeoutRef.current = setTimeout(() => {
+      persistContract({ silent: true });
+    }, 1500);
+    return () => clearTimeout(autosaveTimeoutRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const handleDownloadContract = async () => {
     setPdfGenerating(true);
@@ -3466,13 +3532,20 @@ export default function App() {
   };
 
   const handleSaveNewQuote = async (newQuote) => {
+    // Puo' gia' esistere una riga se l'autosalvataggio l'ha creata in precedenza:
+    // in tal caso aggiorniamo invece di inserire una seconda volta.
+    const exists = quotes.some(q => q.id === newQuote.id);
     if (import.meta.env.DEV) {
-      const updated = [...quotes, newQuote];
+      const updated = exists
+        ? quotes.map(q => q.id === newQuote.id ? newQuote : q)
+        : [...quotes, newQuote];
       setQuotes(updated); devSave(updated);
       setCurrentView('dashboard'); return;
     }
     const { formData, ...rest } = newQuote;
-    const { error } = await supabase.from('quotes').insert({ ...rest, form_data: formData });
+    const { error } = exists
+      ? await supabase.from('quotes').update({ ...rest, form_data: formData }).eq('id', newQuote.id)
+      : await supabase.from('quotes').insert({ ...rest, form_data: formData });
     if (error) {
       alert('Errore nel salvataggio: ' + error.message);
       return;
@@ -3496,6 +3569,31 @@ export default function App() {
     await fetchQuotes();
     setSelectedQuote(null);
     setCurrentView('dashboard');
+  };
+
+  // Autosalvataggio silenzioso del preventivo: non naviga via e non mostra alert,
+  // crea la riga al primo cambiamento (insert) e poi la aggiorna (update).
+  const handleAutosaveQuote = async (autosavedQuote) => {
+    const exists = quotes.some(q => q.id === autosavedQuote.id);
+    if (import.meta.env.DEV) {
+      const updated = exists
+        ? quotes.map(q => q.id === autosavedQuote.id ? autosavedQuote : q)
+        : [...quotes, autosavedQuote];
+      setQuotes(updated);
+      devSave(updated);
+      return;
+    }
+    const { formData, ...rest } = autosavedQuote;
+    if (exists) {
+      const { error } = await supabase.from('quotes').update({ ...rest, form_data: formData }).eq('id', autosavedQuote.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('quotes').insert({ ...rest, form_data: formData });
+      if (error) throw error;
+    }
+    setQuotes(current => exists
+      ? current.map(q => q.id === autosavedQuote.id ? autosavedQuote : q)
+      : [...current, autosavedQuote]);
   };
 
   const handlePrint = (quote) => {
@@ -3648,12 +3746,14 @@ export default function App() {
               setSelectedQuote(null);
             }}
             onSave={handleUpdateQuote}
+            onAutosave={handleAutosaveQuote}
             initialData={{ ...selectedQuote.formData, _editId: selectedQuote.id, _editStatus: selectedQuote.status }}
           />
         ) : (
           <QuoteForm 
             onCancel={() => setCurrentView('dashboard')}
             onSave={handleSaveNewQuote}
+            onAutosave={handleAutosaveQuote}
           />
         )}
       </div>
