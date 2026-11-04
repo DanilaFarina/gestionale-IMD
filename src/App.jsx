@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { jsPDF } from 'jspdf';
-import { Document, Page, View, Text, Image, StyleSheet, pdf, PDFViewer, Font } from '@react-pdf/renderer';
+import { Document, Page, View, Text, Image, StyleSheet, pdf, PDFViewer, Font, Link as PDFLink } from '@react-pdf/renderer';
 import logoIMD from './assets/logo-imd.svg';
 // .woff (non .woff2) per compatibilità con il parser font di react-pdf
 import ptSerifRegular from '@fontsource/pt-serif/files/pt-serif-latin-400-normal.woff';
@@ -410,9 +410,15 @@ const parseTimeToMinutes = (str) => {
   return h * 60 + min;
 };
 
-const minutesToTime = (mins) => {
-  const m = ((mins % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const getSafeExternalUrl = (value) => {
+  const link = String(value || '').trim();
+  if (!link) return '';
+  try {
+    const url = new URL(/^[a-z][a-z\d+.-]*:/i.test(link) ? link : `https://${link}`);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
 };
 
 // Durata in ore tra due orari (gestisce lo scavalco di mezzanotte)
@@ -423,12 +429,6 @@ const computeDurataOre = (inizio, fine) => {
   let diff = b - a;
   if (diff <= 0) diff += 1440;
   return (diff / 60).toLocaleString('it-IT', { maximumFractionDigits: 1 });
-};
-
-// Sottrae un'ora a un orario testuale (per il montaggio)
-const subtractOneHour = (str) => {
-  const a = parseTimeToMinutes(str);
-  return a == null ? '' : minutesToTime(a - 60);
 };
 
 function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
@@ -443,7 +443,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     numeroOspiti: '',
     numPasti: 3,
     numMomenti: 1,
-    momenti: [{ titolo: '', descrizione: '', inizio: '', fine: '' }],
+    momenti: [{ titolo: '', descrizione: '', link: '', minutiPausa: '', inizio: '', fine: '' }],
     numMusicisti: 3,
     cachetMusicista: 200,
     costoCerimonia: 0,
@@ -527,7 +527,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
     setFormData(prev => {
       const n = Math.max(1, prev.numMomenti + delta);
       const momenti = [...(prev.momenti || [])];
-      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', inizio: '', fine: '' });
+      while (momenti.length < n) momenti.push({ titolo: '', descrizione: '', link: '', minutiPausa: '', inizio: '', fine: '' });
       return { ...prev, numMomenti: n, momenti: momenti.slice(0, n) };
     });
   };
@@ -1098,6 +1098,26 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
                             placeholder="Breve descrizione del momento musicale"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 resize-none"
                           />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input
+                              type="url"
+                              value={m.link || ''}
+                              onChange={e => handleMomentoField(i, 'link', e.target.value)}
+                              placeholder="Link al momento (facoltativo)"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Pausa max (minuti, facoltativa)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={m.minutiPausa ?? ''}
+                                onChange={e => handleMomentoField(i, 'minutiPausa', e.target.value === '' ? '' : Number(e.target.value))}
+                                placeholder="es. 20"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1677,6 +1697,7 @@ const pdfStyles = StyleSheet.create({
   momentoContent: { flex: 1 },
   momentoTitle: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', marginBottom: 2 , fontWeight: '800' },
   momentoDesc: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', lineHeight: 1.4 },
+  momentoLink: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#2563eb', textDecoration: 'underline', lineHeight: 1.4 },
   bulletRow: { flexDirection: 'row', marginBottom: 4 },
   bulletDot: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', width: 10 },
   bulletText: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', flex: 1, lineHeight: 1.4 },
@@ -1694,6 +1715,27 @@ const pdfStyles = StyleSheet.create({
   signLine: { width: '100%', borderTopWidth: 0.5, borderTopColor: '#000000', paddingTop: 4 },
   signName: { fontFamily: 'Heiti', fontSize: PDF_FS, color: '#000000', textAlign: 'center' },
 });
+
+function PDFMomentDetails({ moment, english = false, showLink = true }) {
+  const safeLink = getSafeExternalUrl(moment.link);
+  const breakMinutes = Number(moment.minutiPausa || 0);
+
+  return (
+    <>
+      {moment.descrizione ? <Text style={pdfStyles.momentoDesc}>{moment.descrizione}</Text> : null}
+      {showLink && moment.link ? (
+        safeLink
+          ? <PDFLink src={safeLink} style={pdfStyles.momentoLink}>{moment.link}</PDFLink>
+          : <Text style={pdfStyles.momentoDesc}>{moment.link}</Text>
+      ) : null}
+      {breakMinutes > 0 ? (
+        <Text style={pdfStyles.momentoDesc}>
+          {english ? `Breaks: up to ${breakMinutes} minutes` : `Pause: massimo ${breakMinutes} minuti`}
+        </Text>
+      ) : null}
+    </>
+  );
+}
 
 // Dati aziendali IMD (uniformi ai preventivi)
 const IMD_INFO = {
@@ -1777,15 +1819,15 @@ function QuotePDF({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, fd 
         {/* 2. Proposta Artistica */}
         <View>
           <Text style={pdfStyles.sectionHeader}>2. Proposta Artistica</Text>
-          {(fd.momenti || []).filter(m => m.titolo).length > 0
-            ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
+          {(fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).length > 0
+            ? (fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).map((m, i) => (
                 <View key={i} style={pdfStyles.momentoRow} wrap={false}>
                   <Text style={pdfStyles.momentoBullet}>•</Text>
                   <View style={pdfStyles.momentoContent}>
                     <Text style={pdfStyles.momentoTitle}>
                       {m.titolo}{(m.inizio || m.fine) ? `  \u2014  Orario: ${[m.inizio, m.fine].filter(Boolean).join(' \u2013 ')}` : ''}
                     </Text>
-                    {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
+                    <PDFMomentDetails moment={m} showLink={false} />
                   </View>
                 </View>
               ))
@@ -1913,7 +1955,7 @@ function ContractPDF({ data, logoPng }) {
   const ivaLabel = c.mostraIva ? ' + IVA' : '';
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
-  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
+  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.link || m.minutiPausa);
   
   // Inclusioni / esclusioni opzionali (gestite dai checkbox)
   const includAudio = c.includAudio === true;
@@ -2010,9 +2052,12 @@ function ContractPDF({ data, logoPng }) {
         {momenti.map((m, i) => (
           <View key={i} style={pdfStyles.bulletRow}>
             <Text style={pdfStyles.bulletDot}>•</Text>
-            <Text style={pdfStyles.bulletText}>
-              {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live "${m.titolo}"` : ''}{c.minutiPausa ? ` con pause di max ${c.minutiPausa} minuti` : ''}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={pdfStyles.bulletText}>
+                {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live "${m.titolo}"` : ''}
+              </Text>
+              <PDFMomentDetails moment={m} />
+            </View>
           </View>
         ))}
         {c.oraFine ? (
@@ -2241,15 +2286,15 @@ function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, band, acconto, 
         {/* 2. Artistic Proposal */}
         <View>
           <Text style={pdfStyles.sectionHeader}>2. Artistic Proposal</Text>
-          {(fd.momenti || []).filter(m => m.titolo).length > 0
-            ? (fd.momenti || []).filter(m => m.titolo).map((m, i) => (
+          {(fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).length > 0
+            ? (fd.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.minutiPausa).map((m, i) => (
                 <View key={i} style={pdfStyles.momentoRow} wrap={false}>
                   <Text style={pdfStyles.momentoBullet}>•</Text>
                   <View style={pdfStyles.momentoContent}>
                     <Text style={pdfStyles.momentoTitle}>
                       {m.titolo}{(m.inizio || m.fine) ? `  \u2014  Time: ${[m.inizio, m.fine].filter(Boolean).join(' \u2013 ')}` : ''}
                     </Text>
-                    {m.descrizione ? <Text style={pdfStyles.momentoDesc}>{m.descrizione}</Text> : null}
+                    <PDFMomentDetails moment={m} english showLink={false} />
                   </View>
                 </View>
               ))
@@ -2373,7 +2418,7 @@ function ContractPDF_EN({ data, logoPng }) {
   const ivaLabel = c.mostraIva ? ' + VAT 22%' : '';
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
-  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio);
+  const momenti = (c.momenti || []).filter(m => m.titolo || m.inizio || m.fine || m.descrizione || m.link || m.minutiPausa);
   
   const includAudio = c.includAudio === true;
   const escludiAudio = c.escludiAudio === true;
@@ -2462,9 +2507,12 @@ function ContractPDF_EN({ data, logoPng }) {
         {momenti.map((m, i) => (
           <View key={i} style={pdfStyles.bulletRow}>
             <Text style={pdfStyles.bulletDot}>•</Text>
-            <Text style={pdfStyles.bulletText}>
-              {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live performance "${m.titolo}"` : ''}{c.minutiPausa ? ` with breaks of max ${c.minutiPausa} minutes` : ''}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={pdfStyles.bulletText}>
+                {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live performance "${m.titolo}"` : ''}
+              </Text>
+              <PDFMomentDetails moment={m} english />
+            </View>
           </View>
         ))}
         {c.oraFine ? (
@@ -2868,11 +2916,15 @@ const ContractSection = ({ title, icon: Icon, children }) => (
 
 function ContractForm({ quote, onBack, onSave }) {
   const fd = quote.formData || {};
-  const momenti = fd.momenti || [];
   const saved = fd.contractData || {};
+  const momentiPreventivo = fd.momenti || [];
+  const momentiIniziali = (saved.momenti || momentiPreventivo).map(m => ({
+    ...m,
+    minutiPausa: m.minutiPausa ?? saved.minutiPausa ?? '',
+  }));
 
-  const oraInizio = momenti.find(m => m?.inizio)?.inizio || '';
-  const oraFine = [...momenti].reverse().find(m => m?.fine)?.fine || '';
+  const oraInizio = momentiIniziali.find(m => m?.inizio)?.inizio || '';
+  const oraFine = [...momentiIniziali].reverse().find(m => m?.fine)?.fine || '';
 
   const [data, setData] = useState({
     // Cliente (dati fiscali da compilare)
@@ -2888,9 +2940,8 @@ function ContractForm({ quote, onBack, onSave }) {
     // Orari (derivati dai momenti)
     oraInizio,
     oraFine,
-    orarioMontaggio: subtractOneHour(oraInizio),
+    orarioMontaggio: '',
     durataOre: computeDurataOre(oraInizio, oraFine),
-    minutiPausa: 20,
     // Formazione (precompilata dal preventivo)
     strumentiFormazione: '',
     numeroMusicisti: fd.numMusicisti || '',
@@ -2919,7 +2970,10 @@ function ContractForm({ quote, onBack, onSave }) {
     causaleBonifico: '',
     // Sovrascrivi con i dati del contratto gia' salvati (se presenti)
     ...saved,
+    momenti: momentiIniziali,
   });
+
+  const momenti = data.momenti || [];
 
   const handle = (e) => {
     const { name, value, type, checked } = e.target;
@@ -2927,6 +2981,43 @@ function ContractForm({ quote, onBack, onSave }) {
       ...prev, 
       [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
     }));
+  };
+
+  const handleMomentField = (index, field, value) => {
+    setData(prev => {
+      const nextMomenti = (prev.momenti || []).map((momento, i) => (
+        i === index ? { ...momento, [field]: value } : momento
+      ));
+      const next = { ...prev, momenti: nextMomenti };
+      if (field === 'inizio' || field === 'fine') {
+        const inizio = nextMomenti.find(m => m?.inizio)?.inizio || '';
+        const fine = [...nextMomenti].reverse().find(m => m?.fine)?.fine || '';
+        next.oraInizio = inizio;
+        next.oraFine = fine;
+        next.durataOre = computeDurataOre(inizio, fine);
+      }
+      return next;
+    });
+  };
+
+  const handleContractMomentCount = (delta) => {
+    setData(prev => {
+      const nextMomenti = [...(prev.momenti || [])];
+      if (delta > 0) {
+        nextMomenti.push({ titolo: '', descrizione: '', link: '', minutiPausa: '', inizio: '', fine: '' });
+      } else if (nextMomenti.length > 1) {
+        nextMomenti.pop();
+      }
+      const inizio = nextMomenti.find(m => m?.inizio)?.inizio || '';
+      const fine = [...nextMomenti].reverse().find(m => m?.fine)?.fine || '';
+      return {
+        ...prev,
+        momenti: nextMomenti,
+        oraInizio: inizio,
+        oraFine: fine,
+        durataOre: computeDurataOre(inizio, fine),
+      };
+    });
   };
 
   const importoSaldo = Math.max(0, Number(data.compensoTotale || 0) - Number(data.importoAcconto || 0));
@@ -2979,7 +3070,6 @@ function ContractForm({ quote, onBack, onSave }) {
       if (!logoPngRef.current) logoPngRef.current = await svgToPngDataUrl(logoIMD);
       const contractData = {
         ...data,
-        momenti,
         luogoFirma: 'Firenze',
         dataFirma: new Date().toLocaleDateString('it-IT'),
       };
@@ -3082,21 +3172,42 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Ora Fine" name="oraFine" value={data.oraFine} onChange={handle} />
           <ContractField label="Durata (ore)" name="durataOre" value={data.durataOre} onChange={handle} />
           <ContractField label="Orario Montaggio" name="orarioMontaggio" value={data.orarioMontaggio} onChange={handle} />
-          <ContractField label="Minuti Pausa (max)" name="minutiPausa" value={data.minutiPausa} onChange={handle} opts={{ type: 'number' }} />
-          <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Programma live (dai momenti)</p>
-            {momenti.filter(m => m.titolo || m.inizio).length > 0 ? (
-              <ul className="text-sm text-slate-700 space-y-1">
-                {momenti.filter(m => m.titolo || m.inizio).map((m, i) => (
-                  <li key={i}>
-                    <span className="font-medium">{[m.inizio, m.fine].filter(Boolean).join(' – ')}</span>
-                    {m.titolo ? ` — ${m.titolo}` : ''}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-slate-400">Nessun momento con orario nel preventivo.</p>
-            )}
+          <div className="md:col-span-2 -mt-2">
+            <p className="text-xs text-slate-500">Inserisci manualmente l&apos;orario di montaggio e soundcheck.</p>
+          </div>
+          <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programma live (modificabile)</p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => handleContractMomentCount(-1)} disabled={momenti.length <= 1} className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold disabled:opacity-40">−</button>
+                <span className="text-xs text-slate-500">{momenti.length} momenti</span>
+                <button type="button" onClick={() => handleContractMomentCount(1)} className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold">+</button>
+              </div>
+            </div>
+            {momenti.map((m, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase">Momento {i + 1}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs text-slate-500">
+                    Dalle
+                    <input type="text" value={m.inizio || ''} onChange={e => handleMomentField(i, 'inizio', e.target.value)} placeholder="es. 17:00" className="mt-1 w-full px-2 py-2 border border-slate-300 rounded-lg text-sm text-slate-700" />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    Alle
+                    <input type="text" value={m.fine || ''} onChange={e => handleMomentField(i, 'fine', e.target.value)} placeholder="es. 19:00" className="mt-1 w-full px-2 py-2 border border-slate-300 rounded-lg text-sm text-slate-700" />
+                  </label>
+                </div>
+                <input type="text" value={m.titolo || ''} onChange={e => handleMomentField(i, 'titolo', e.target.value)} placeholder="Titolo del momento" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <textarea rows={2} value={m.descrizione || ''} onChange={e => handleMomentField(i, 'descrizione', e.target.value)} placeholder="Descrizione del momento" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm resize-y" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input type="url" value={m.link || ''} onChange={e => handleMomentField(i, 'link', e.target.value)} placeholder="Link al momento (facoltativo)" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  <label className="text-xs text-slate-500">
+                    Pausa max (minuti, facoltativa)
+                    <input type="number" min="0" value={m.minutiPausa ?? ''} onChange={e => handleMomentField(i, 'minutiPausa', e.target.value === '' ? '' : Number(e.target.value))} placeholder="es. 20" className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  </label>
+                </div>
+              </div>
+            ))}
           </div>
         </ContractSection>
 
