@@ -37,6 +37,8 @@ import {
   Car,
   LogOut,
   Mail,
+  Archive,
+  LayoutTemplate,
   FileText,
   BarChart3,
   TrendingUp,
@@ -154,9 +156,10 @@ const groupQuotesByEvent = (quotes) => {
   return groups;
 };
 
-// Preventivo che rappresenta l'evento: quello approvato, altrimenti l'ultima versione attiva
+// Preventivo che rappresenta l'evento: quello approvato (con contratto compilato, se ci sono più approvati per errore), altrimenti l'ultima versione attiva
 const pickGroupRepresentative = (list) => [...list].sort((a, b) =>
   (QUOTE_STATUS_PRIORITY[a.status] ?? 3) - (QUOTE_STATUS_PRIORITY[b.status] ?? 3)
+  || Number(Boolean(b.formData?.contractData)) - Number(Boolean(a.formData?.contractData))
   || getQuoteVersion(b) - getQuoteVersion(a)
   || (Date.parse(getQuoteCreatedAt(b)) || 0) - (Date.parse(getQuoteCreatedAt(a)) || 0))[0];
 
@@ -183,7 +186,7 @@ const fileDatePart = (value) => {
 const buildPdfFileName = (type, client, date, suffix = '') =>
   `${fileDatePart(date)}_${fileNamePart(client, 'Cliente')}_${type}${suffix ? `_${suffix}` : ''}.pdf`;
 
-function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
+function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onUseAsTemplate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
   const [clientFilter, setClientFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('Tutti');
@@ -572,6 +575,16 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                           <Plus size={18} />
                         </button>
                         )}
+                        {!quote.formData?._isBlankContract && (
+                        <button
+                          type="button"
+                          onClick={() => onUseAsTemplate(quote.id)}
+                          title="Usa come template per un nuovo evento"
+                          className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                        >
+                          <LayoutTemplate size={18} />
+                        </button>
+                        )}
                         {quote.status === 'Archiviato' && (
                           <button
                             type="button"
@@ -589,7 +602,7 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                             title="Archivia"
                             className="p-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
                           >
-                            <Mail size={18} />
+                            <Archive size={18} />
                           </button>
                         )}
                         <button
@@ -738,7 +751,7 @@ const computeDurataOre = (inizio, fine) => {
   return (diff / 60).toLocaleString('it-IT', { maximumFractionDigits: 1 });
 };
 
-function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
+function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = false }) {
   // Stato del form
   const defaults = {
     client: '',
@@ -1287,7 +1300,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData }) {
           <ArrowLeft size={24} className="text-slate-600" />
         </button>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">{initialData ? 'Modifica Preventivo' : 'Componi Preventivo'}</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">{isTemplate ? 'Nuovo Preventivo da Template' : initialData ? 'Modifica Preventivo' : 'Componi Preventivo'}</h2>
           <p className="text-slate-500 text-sm">Inserisci i parametri. Il calcolo si aggiorna in tempo reale.</p>
         </div>
       </div>
@@ -3993,6 +4006,7 @@ export default function App() {
   // Gestione delle "Pagine": 'dashboard' | 'create' | 'print'
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedQuote, setSelectedQuote] = useState(null);
+  const [templateData, setTemplateData] = useState(null);
 
   // In locale bypassa l'auth; in produzione usa Supabase Magic Link
   useEffect(() => {
@@ -4055,17 +4069,39 @@ export default function App() {
     setSelectedQuote(null);
   };
 
+  // Per ogni evento può essere approvato un solo preventivo: approvandone un altro il precedente torna "In attesa"
   const handleApprove = async (id) => {
+    const quote = quotes.find(q => q.id === id);
+    if (!quote) return;
+    const groupId = getQuoteGroupId(quote);
+    const previouslyApproved = quotes.filter(q => q.id !== id && q.status === 'Approvato' && getQuoteGroupId(q) === groupId);
+    if (previouslyApproved.length > 0 && !window.confirm('Sei sicuro di voler cambiare il preventivo approvato? Quello attualmente approvato tornerà "In attesa".')) {
+      return;
+    }
+    const demotedIds = previouslyApproved.map(q => q.id);
+    const applyStatuses = (list) => list.map(q => {
+      if (q.id === id) return { ...q, status: 'Approvato' };
+      if (demotedIds.includes(q.id)) return { ...q, status: 'In attesa' };
+      return q;
+    });
+
     if (import.meta.env.DEV) {
-      const updated = quotes.map(q => q.id === id ? { ...q, status: 'Approvato' } : q);
+      const updated = applyStatuses(quotes);
       setQuotes(updated); devSave(updated); return;
+    }
+    if (demotedIds.length > 0) {
+      const { error: demoteError } = await supabase.from('quotes').update({ status: 'In attesa' }).in('id', demotedIds);
+      if (demoteError) {
+        alert('Errore: ' + demoteError.message);
+        return;
+      }
     }
     const { error } = await supabase.from('quotes').update({ status: 'Approvato' }).eq('id', id);
     if (error) {
       alert('Errore: ' + error.message);
       return;
     }
-    setQuotes(quotes.map(q => q.id === id ? { ...q, status: 'Approvato' } : q));
+    setQuotes(applyStatuses(quotes));
   };
 
   const updateQuoteStatus = async (id, status) => {
@@ -4157,6 +4193,31 @@ export default function App() {
     setQuotes(prev => [...prev, duplicate]);
     setSelectedQuote(duplicate);
     setCurrentView('edit');
+  };
+
+  // Il nuovo preventivo parte dalle impostazioni economiche e dal programma musicale, senza i dati dell'evento originale
+  const handleUseAsTemplate = (id) => {
+    const quote = quotes.find(q => q.id === id);
+    if (!quote?.formData) {
+      alert('Dati del preventivo non disponibili per il template.');
+      return;
+    }
+    const {
+      _editId, _editStatus, _quoteGroupId, _quoteVersion, _createdAt, contractData, musicianPayments,
+      ...templateFields
+    } = quote.formData;
+    void _editId; void _editStatus; void _quoteGroupId; void _quoteVersion; void _createdAt; void contractData; void musicianPayments;
+    setTemplateData({
+      ...templateFields,
+      client: '',
+      date: '',
+      address: '',
+      nomeLocation: '',
+      numeroOspiti: '',
+      distanzaKm: 0,
+      pedaggioManuale: 0
+    });
+    setCurrentView('template');
   };
 
   const handleSaveNewQuote = async (newQuote) => {
@@ -4385,6 +4446,7 @@ export default function App() {
             onDelete={handleDelete}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
+            onUseAsTemplate={handleUseAsTemplate}
             onCreateNew={() => setCurrentView('create')}
             onCreateBlankContract={handleCreateBlankContract}
             onPrint={handlePrint}
@@ -4426,6 +4488,18 @@ export default function App() {
             onSave={handleUpdateQuote}
             onAutosave={handleAutosaveQuote}
             initialData={{ ...selectedQuote.formData, _editId: selectedQuote.id, _editStatus: selectedQuote.status }}
+          />
+        ) : currentView === 'template' && templateData ? (
+          <QuoteForm
+            key="template"
+            onCancel={() => {
+              setCurrentView('dashboard');
+              setTemplateData(null);
+            }}
+            onSave={(newQuote) => { setTemplateData(null); return handleSaveNewQuote(newQuote); }}
+            onAutosave={handleAutosaveQuote}
+            initialData={templateData}
+            isTemplate
           />
         ) : (
           <QuoteForm 

@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist --repo https://github.com/DanilaFarina/gestionale-IMD.git"
+    "deploy": "npm run build && gh-pages -d dist --repo git@github.com:DanilaFarina/gestionale-IMD.git"
   },
   "dependencies": {
     "@fontsource/eb-garamond": "^5.3.0",
