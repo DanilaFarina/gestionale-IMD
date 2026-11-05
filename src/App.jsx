@@ -178,9 +178,16 @@ const fileNamePart = (value, fallback) => String(value || fallback)
   .replace(/[^a-zA-Z0-9_-]+/g, '_')
   .replace(/^_+|_+$/g, '') || fallback;
 
+const IT_SHORT_MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+
 const fileDatePart = (value) => {
   const date = String(value || '').trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : fileNamePart(date, 'SenzaData');
+  const iso = date.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const dmy = date.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  const parts = iso ? { year: iso[1], month: iso[2], day: iso[3] } : dmy ? { year: dmy[3], month: dmy[2], day: dmy[1] } : null;
+  const month = parts && IT_SHORT_MONTHS[Number(parts.month) - 1];
+  if (month) return `${parts.day.padStart(2, '0')}-${month}-${parts.year}`;
+  return fileNamePart(date, 'SenzaData');
 };
 
 const buildPdfFileName = (type, client, date, suffix = '') =>
