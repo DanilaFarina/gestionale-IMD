@@ -16,15 +16,15 @@ import garamondBold from '@fontsource/eb-garamond/files/eb-garamond-latin-700-no
 import garamondExtrabold from '@fontsource/eb-garamond/files/eb-garamond-latin-800-normal.woff';
 import garamondItalic from '@fontsource/eb-garamond/files/eb-garamond-latin-400-italic.woff';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  CheckCircle, 
-  Clock, 
-  Search, 
-  Filter, 
-  MapPin, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  CheckCircle,
+  Clock,
+  Search,
+  Filter,
+  MapPin,
   Music,
   XCircle,
   Check,
@@ -388,8 +388,8 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                 type="button"
                 onClick={() => setStatusFilter(status)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  statusFilter === status 
-                    ? 'bg-slate-800 text-white' 
+                  statusFilter === status
+                    ? 'bg-slate-800 text-white'
                     : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1289,7 +1289,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -1306,7 +1306,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* FORM INSERIMENTO PARAMETRI (Sinistra - 2 colonne) */}
         <div className="lg:col-span-2 space-y-6">
           <form id="quote-form" onSubmit={handleSubmit} onKeyDown={e => e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.preventDefault()} className="space-y-6">
@@ -1864,7 +1864,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
         <div className="lg:col-span-1">
           <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-lg sticky top-6">
             <h3 className="text-xl font-bold mb-4 border-b border-slate-600 pb-3">Riepilogo Interno</h3>
-            
+
             <div className="space-y-3 text-sm mb-6">
               <div className="flex justify-between items-center text-slate-300">
                 <span>Cachet Musicisti ({formData.numMusicisti})</span>
@@ -2015,7 +2015,7 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
               </p>
             )}
 
-            <button 
+            <button
               type="submit"
               form="quote-form"
               className="w-full mt-6 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-sm transition-colors"
@@ -2424,7 +2424,7 @@ function ContractPDF({ data, logoPng }) {
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
   const momenti = (c.momenti || []).filter(hasMomentContent);
-  
+
   // Inclusioni / esclusioni opzionali (gestite dai checkbox)
   const includAudio = c.includAudio === true;
   const escludiAudio = c.escludiAudio === true;
@@ -2452,10 +2452,10 @@ function ContractPDF({ data, logoPng }) {
   if (escludiViaggio) esclusioniBuild.push("rimborsi di viaggio e trasferta");
   if (escludiAlloggio) esclusioniBuild.push("costi di alloggio");
   if (escludiVitto) esclusioniBuild.push("vitto e pasti per i musicisti");
-  
+
   // Aggiungi esclusioni personalizzate se presenti
   if (c.esclusoAltro) esclusioniBuild.push(c.esclusoAltro);
-  
+
   const inclusioni = inclusioniBuild.join(", ");
   const esclusioni = esclusioniBuild.join(", ");
 
@@ -2604,7 +2604,7 @@ function ContractPDF({ data, logoPng }) {
 Qualora il Cliente comunichi il recesso entro 7 (sette) giorni dalla sottoscrizione del contratto e prima del versamento della caparra confirmatoria, il Gruppo sarà liberato da ogni obbligo relativo all&apos;esecuzione del servizio.</Text>
 
         <Text style={pdfStyles.clauseText}>6.2 <Text style={{fontWeight: 'bold'}}>Penali di annullamento da parte del Cliente</Text>: Qualora l&apos;annullamento avvenga oltre i 7 giorni dalla firma o dopo il versamento della caparra, si applicheranno le seguenti penali in base al preavviso fornito dal Cliente rispetto alla data dell&apos;evento:</Text>
-        
+
         <View style={{marginBottom: 12, marginLeft: 10}}>
           <View style={{flexDirection: 'row', marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#000000', paddingBottom: 3}}>
             <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Preavviso di annullamento</Text>
@@ -2789,11 +2789,15 @@ function QuotePDF_EN({ quote, prezzoLordo, scontoperTe, logoPng, acconto, fd }) 
               <Text style={pdfStyles.ecoLabel}>Gross Price</Text>
               <Text style={pdfStyles.ecoValue}>€ {prezzoLordo.toLocaleString('it-IT')}{ivaLabel}</Text>
             </View>
-            <View style={pdfStyles.ecoDivider} />
-            <View style={pdfStyles.ecoRow}>
-              <Text style={pdfStyles.ecoLabelStrong}>Discount for You</Text>
-              <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')}{ivaLabel}</Text>
-            </View>
+            {fd.mostraScontoPerTe && (
+              <>
+                <View style={pdfStyles.ecoDivider} />
+                <View style={pdfStyles.ecoRow}>
+                  <Text style={pdfStyles.ecoLabelStrong}>Discount for You</Text>
+                  <Text style={pdfStyles.ecoValue}>€ {scontoperTe.toLocaleString('it-IT')}{ivaLabel}</Text>
+                </View>
+              </>
+            )}
             {acconto > 0 ? (
               <>
                 <View style={pdfStyles.ecoDivider} />
@@ -2898,7 +2902,7 @@ function ContractPDF_EN({ data, logoPng }) {
   const acconto = Number(c.importoAcconto || 0);
   const saldo = Math.max(0, compenso - acconto);
   const momenti = (c.momenti || []).filter(hasMomentContent);
-  
+
   const includAudio = c.includAudio === true;
   const escludiAudio = c.escludiAudio === true;
   const includLuci = c.includLuci === true;
@@ -2925,7 +2929,7 @@ function ContractPDF_EN({ data, logoPng }) {
   if (escludiAlloggio) esclusioniBuild.push("accommodation costs");
   if (escludiVitto) esclusioniBuild.push("meals for musicians");
   if (c.esclusoAltro) esclusioniBuild.push(c.esclusoAltro);
-  
+
   const inclusioni = inclusioniBuild.join(", ");
   const esclusioni = esclusioniBuild.join(", ");
 
@@ -3074,7 +3078,7 @@ function ContractPDF_EN({ data, logoPng }) {
 If the Client cancels within 7 (seven) days from contract signing and before deposit payment, IMD is released from all obligations regarding performance.</Text>
 
         <Text style={pdfStyles.clauseText}>6.2 <Text style={{fontWeight: 'bold'}}>Cancellation Penalties</Text>: If cancellation occurs after 7 days from signing or after deposit payment, the following penalties apply based on notice given:</Text>
-        
+
         <View style={{marginBottom: 12, marginLeft: 10}}>
           <View style={{flexDirection: 'row', marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#000000', paddingBottom: 3}}>
             <Text style={{flex: 1.2, fontSize: PDF_FS, fontWeight: 'bold', color: '#000000'}}>Notice Period</Text>
@@ -3227,8 +3231,8 @@ function PrintView({ quote, onBack }) {
             type="button"
             onClick={() => setLanguage('IT')}
             className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-              language === 'IT' 
-                ? 'bg-stone-800 text-white' 
+              language === 'IT'
+                ? 'bg-stone-800 text-white'
                 : 'bg-white border border-stone-300 text-stone-800 hover:bg-stone-50'
             }`}
           >
@@ -3238,8 +3242,8 @@ function PrintView({ quote, onBack }) {
             type="button"
             onClick={() => setLanguage('EN')}
             className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-              language === 'EN' 
-                ? 'bg-stone-800 text-white' 
+              language === 'EN'
+                ? 'bg-stone-800 text-white'
                 : 'bg-white border border-stone-300 text-stone-800 hover:bg-stone-50'
             }`}
           >
@@ -3479,8 +3483,8 @@ function ContractForm({ quote, onBack, onSave }) {
 
   const handle = (e) => {
     const { name, value, type, checked } = e.target;
-    setData(prev => ({ 
-      ...prev, 
+    setData(prev => ({
+      ...prev,
       [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
     }));
   };
@@ -3575,7 +3579,7 @@ function ContractForm({ quote, onBack, onSave }) {
         luogoFirma: 'Firenze',
         dataFirma: new Date().toLocaleDateString('it-IT'),
       };
-      const doc = contractLanguage === 'EN' 
+      const doc = contractLanguage === 'EN'
         ? <ContractPDF_EN data={contractData} logoPng={logoPngRef.current} />
         : <ContractPDF data={contractData} logoPng={logoPngRef.current} />;
       const blob = await pdf(doc).toBlob();
@@ -3612,8 +3616,8 @@ function ContractForm({ quote, onBack, onSave }) {
               type="button"
               onClick={() => setContractLanguage('IT')}
               className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                contractLanguage === 'IT' 
-                  ? 'bg-slate-800 text-white' 
+                contractLanguage === 'IT'
+                  ? 'bg-slate-800 text-white'
                   : 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50'
               }`}
             >
@@ -3623,8 +3627,8 @@ function ContractForm({ quote, onBack, onSave }) {
               type="button"
               onClick={() => setContractLanguage('EN')}
               className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                contractLanguage === 'EN' 
-                  ? 'bg-slate-800 text-white' 
+                contractLanguage === 'EN'
+                  ? 'bg-slate-800 text-white'
                   : 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50'
               }`}
             >
@@ -3742,7 +3746,7 @@ function ContractForm({ quote, onBack, onSave }) {
           <ContractField label="Numero Pasti" name="numeroPasti" value={data.numeroPasti} onChange={handle} opts={{ type: 'number' }} />
           <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-xl p-4">
             <p className="text-sm font-semibold text-slate-700 mb-4">Inclusioni ed Esclusioni nel Prezzo</p>
-            
+
             {/* Inclusioni */}
             <div className="mb-4">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">✓ Incluso nel Prezzo</p>
@@ -4438,7 +4442,7 @@ export default function App() {
         )}
 
         {currentView === 'dashboard' ? (
-          <Dashboard 
+          <Dashboard
             quotes={quotes}
             onApprove={handleApprove}
             onArchive={handleArchive}
@@ -4463,12 +4467,12 @@ export default function App() {
             onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'print' && selectedQuote ? (
-          <PrintView 
-            quote={selectedQuote} 
+          <PrintView
+            quote={selectedQuote}
             onBack={() => {
               setCurrentView('dashboard');
               setSelectedQuote(null);
-            }} 
+            }}
           />
         ) : currentView === 'contract' && selectedQuote?.formData ? (
           <ContractForm
@@ -4480,7 +4484,7 @@ export default function App() {
             }}
           />
         ) : currentView === 'edit' && selectedQuote?.formData ? (
-          <QuoteForm 
+          <QuoteForm
             onCancel={() => {
               setCurrentView('dashboard');
               setSelectedQuote(null);
@@ -4502,7 +4506,7 @@ export default function App() {
             isTemplate
           />
         ) : (
-          <QuoteForm 
+          <QuoteForm
             onCancel={() => setCurrentView('dashboard')}
             onSave={handleSaveNewQuote}
             onAutosave={handleAutosaveQuote}
