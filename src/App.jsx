@@ -46,6 +46,9 @@ import {
   TrendingUp,
   Wallet,
   CalendarDays,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX,
   RotateCcw,
   ChevronDown,
   ChevronRight
@@ -143,6 +146,16 @@ const getQuoteTotal = (quote) => Number(quote.formData?.contractData?.compensoTo
 
 const QUOTE_STATUS_PRIORITY = { 'Approvato': 0, 'In attesa': 1, 'Archiviato': 2 };
 
+function CalendarBadge({ sync, approved }) {
+  if (sync?.error) {
+    return <CalendarX size={16} className="text-red-500" title={`Errore sync calendario: ${sync.error}`} />;
+  }
+  if (!sync?.eventId) return null;
+  return approved
+    ? <CalendarCheck size={16} className="text-blue-500" title="Confermato nel calendario Google" />
+    : <CalendarClock size={16} className="text-amber-500" title="Opzione nel calendario Google" />;
+}
+
 // Raggruppa i preventivi per evento (stesso _quoteGroupId), versioni in ordine crescente
 const groupQuotesByEvent = (quotes) => {
   const groups = new Map();
@@ -193,7 +206,7 @@ const fileDatePart = (value) => {
 const buildPdfFileName = (type, client, date, suffix = '') =>
   `${fileDatePart(date)}_${fileNamePart(client, 'Cliente')}_${type}${suffix ? `_${suffix}` : ''}.pdf`;
 
-function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onUseAsTemplate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
+function Dashboard({ quotes, calendarSync, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onUseAsTemplate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
   const [clientFilter, setClientFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('Tutti');
@@ -456,10 +469,11 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                         </td>
                         <td className="px-6 py-4 font-medium text-slate-900">{formatGroupTotal(list)}</td>
                         <td className="px-3 py-4 text-center">
-                          <span title={groupStatus} className="inline-flex items-center justify-center">
+                          <span title={groupStatus} className="inline-flex items-center justify-center gap-2">
                             {groupStatus === 'Approvato' && <CheckCircle size={20} className="text-green-600" />}
                             {groupStatus === 'In attesa' && <Clock size={20} className="text-yellow-500" />}
                             {groupStatus === 'Archiviato' && <XCircle size={20} className="text-gray-400" />}
+                            <CalendarBadge sync={calendarSync[representative.id]} approved={groupStatus === 'Approvato'} />
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -516,10 +530,11 @@ function Dashboard({ quotes, onApprove, onArchive, onRestore, onDelete, onEdit, 
                       )}
                     </td>
                     <td className="px-3 py-4 text-center">
-                      <span title={quote.status} className="inline-flex items-center justify-center">
+                      <span title={quote.status} className="inline-flex items-center justify-center gap-2">
                         {quote.status === 'Approvato' && <CheckCircle size={20} className="text-green-600" />}
                         {quote.status === 'In attesa' && <Clock size={20} className="text-yellow-500" />}
                         {quote.status === 'Archiviato' && <XCircle size={20} className="text-gray-400" />}
+                        {quote.status !== 'Archiviato' && <CalendarBadge sync={calendarSync[quote.id]} approved={quote.status === 'Approvato'} />}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -4004,6 +4019,8 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [quotes, setQuotes] = useState([]);
+  const [calendarSync, setCalendarSync] = useState({});
+  const calendarSyncRefreshTimeout = useRef(null);
 
   // Gestione delle "Pagine": 'dashboard' | 'create' | 'print'
   const [currentView, setCurrentView] = useState('dashboard');
@@ -4035,6 +4052,7 @@ export default function App() {
   const fetchQuotes = useCallback(async () => {
     if (import.meta.env.DEV) {
       setQuotes(devLoad());
+      setCalendarSync({});
       return;
     }
     if (!supabase) return;
@@ -4047,16 +4065,37 @@ export default function App() {
         console.error('Errore caricamento preventivi:', error);
         return;
       }
-      setQuotes(data.map(({ form_data, created_at, ...rest }) => ({
-        ...rest,
-        formData: {
-          ...(form_data || {}),
-          _createdAt: created_at || form_data?._createdAt || ''
-        }
-      })));
+      setCalendarSync(Object.fromEntries(data.map(q => [q.id, {
+        eventId: q.google_event_id,
+        syncedAt: q.calendar_synced_at,
+        error: q.calendar_sync_error,
+      }])));
+      setQuotes(data.map(({ form_data, created_at, google_event_id, calendar_synced_at, calendar_sync_error, ...rest }) => {
+        void google_event_id; void calendar_synced_at; void calendar_sync_error;
+        return {
+          ...rest,
+          formData: {
+            ...(form_data || {}),
+            _createdAt: created_at || form_data?._createdAt || ''
+          }
+        };
+      }));
     } catch (err) {
       console.error('Errore di rete caricamento preventivi:', err);
     }
+  }, []);
+
+  const scheduleCalendarSyncRefresh = useCallback(() => {
+    if (import.meta.env.DEV) return;
+    if (calendarSyncRefreshTimeout.current) clearTimeout(calendarSyncRefreshTimeout.current);
+    calendarSyncRefreshTimeout.current = setTimeout(() => {
+      calendarSyncRefreshTimeout.current = null;
+      void fetchQuotes();
+    }, 3000);
+  }, [fetchQuotes]);
+
+  useEffect(() => () => {
+    if (calendarSyncRefreshTimeout.current) clearTimeout(calendarSyncRefreshTimeout.current);
   }, []);
 
   useEffect(() => {
@@ -4067,6 +4106,7 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setQuotes([]);
+    setCalendarSync({});
     setCurrentView('dashboard');
     setSelectedQuote(null);
   };
@@ -4091,19 +4131,13 @@ export default function App() {
       const updated = applyStatuses(quotes);
       setQuotes(updated); devSave(updated); return;
     }
-    if (demotedIds.length > 0) {
-      const { error: demoteError } = await supabase.from('quotes').update({ status: 'In attesa' }).in('id', demotedIds);
-      if (demoteError) {
-        alert('Errore: ' + demoteError.message);
-        return;
-      }
-    }
-    const { error } = await supabase.from('quotes').update({ status: 'Approvato' }).eq('id', id);
+    const { error } = await supabase.rpc('approve_quote', { p_id: id });
     if (error) {
       alert('Errore: ' + error.message);
       return;
     }
     setQuotes(applyStatuses(quotes));
+    scheduleCalendarSyncRefresh();
   };
 
   const updateQuoteStatus = async (id, status) => {
@@ -4117,6 +4151,7 @@ export default function App() {
       return;
     }
     setQuotes(quotes.map(q => q.id === id ? { ...q, status } : q));
+    scheduleCalendarSyncRefresh();
   };
 
   const handleArchive = (id) => updateQuoteStatus(id, 'Archiviato');
@@ -4145,6 +4180,7 @@ export default function App() {
     const updated = quotes.filter(q => q.id !== id);
     setQuotes(updated);
     setSelectedQuote(prev => prev && prev.id === id ? null : prev);
+    scheduleCalendarSyncRefresh();
   };
 
   const handleEdit = (id) => {
@@ -4195,6 +4231,7 @@ export default function App() {
     setQuotes(prev => [...prev, duplicate]);
     setSelectedQuote(duplicate);
     setCurrentView('edit');
+    scheduleCalendarSyncRefresh();
   };
 
   // Il nuovo preventivo parte dalle impostazioni economiche e dal programma musicale, senza i dati dell'evento originale
@@ -4242,6 +4279,7 @@ export default function App() {
       return;
     }
     await fetchQuotes();
+    scheduleCalendarSyncRefresh();
     setCurrentView('dashboard');
   };
 
@@ -4258,6 +4296,7 @@ export default function App() {
       return;
     }
     await fetchQuotes();
+    scheduleCalendarSyncRefresh();
     setSelectedQuote(null);
     setCurrentView('dashboard');
   };
@@ -4285,6 +4324,7 @@ export default function App() {
     setQuotes(current => exists
       ? current.map(q => q.id === autosavedQuote.id ? autosavedQuote : q)
       : [...current, autosavedQuote]);
+    scheduleCalendarSyncRefresh();
   };
 
   const handlePrint = (quote) => {
@@ -4364,6 +4404,7 @@ export default function App() {
       ? current.map(q => q.id === quoteId ? updatedQuote : q)
       : [...current, updatedQuote]);
     setSelectedQuote(prev => prev && prev.id === quoteId ? updatedQuote : prev);
+    scheduleCalendarSyncRefresh();
   };
 
   const handleSaveMusicianPayments = async (quoteId, musicianPayments) => {
@@ -4442,6 +4483,7 @@ export default function App() {
         {currentView === 'dashboard' ? (
           <Dashboard
             quotes={quotes}
+            calendarSync={calendarSync}
             onApprove={handleApprove}
             onArchive={handleArchive}
             onRestore={handleRestore}

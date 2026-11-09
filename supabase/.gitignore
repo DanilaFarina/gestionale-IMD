@@ -1,0 +1,15 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+# Supabase
+supabase/.temp
+supabase/.branches
+supabase/.env
+# Google credentials (should live in ~/secrets anyway)
+*service-account*.json
+*-sa.json
