@@ -16,6 +16,8 @@ import garamondBold from '@fontsource/eb-garamond/files/eb-garamond-latin-700-no
 import garamondExtrabold from '@fontsource/eb-garamond/files/eb-garamond-latin-800-normal.woff';
 import garamondItalic from '@fontsource/eb-garamond/files/eb-garamond-latin-400-italic.woff';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { getNextQuoteVersion, getQuoteGroupId, getQuoteVersion } from './quoteVersions';
+import { getContractOptionDefaults } from './contractDefaults';
 import {
   Plus,
   Edit,
@@ -126,8 +128,6 @@ function formatMultiplier(value) {
 // ==========================================
 // COMPONENTE DASHBOARD
 // ==========================================
-const getQuoteGroupId = (quote) => quote.formData?._quoteGroupId || quote.id;
-const getQuoteVersion = (quote) => Number(quote.formData?._quoteVersion) || 1;
 // Versione 1 -> A, 2 -> B, ... 27 -> AA
 const getQuoteLabel = (quote) => {
   let n = getQuoteVersion(quote);
@@ -3456,17 +3456,8 @@ function ContractForm({ quote, onBack, onSave }) {
     numeroImpianti: fd.numImpianti ?? 0,
     numeroPasti: fd.numPasti || '',
     nomeFrontman: '', // nome del frontman della band
-    // Inclusioni / esclusioni opzionali: le esclusioni restano state espliciti dell'utente
-    includAudio: Number(fd.numImpianti || 0) > 0,
-    escludiAudio: false,
-    includLuci: true,
-    escludiLuci: false,
-    includViaggio: Number(fd.distanzaKm || 0) > 0,
-    escludiViaggio: false,
-    includAlloggio: Boolean(fd.usaPernottamento),
-    escludiAlloggio: false,
-    includVitto: false,
-    escludiVitto: false,
+    // Inclusioni / esclusioni precompilate dal preventivo approvato
+    ...getContractOptionDefaults(fd),
     inclusoAltro: '', // testo delle inclusioni personalizzate
     esclusoAltro: '', // testo delle esclusioni personalizzate
     // Economico (default: prezzo lordo, aggiustabile col concordato)
@@ -4180,7 +4171,7 @@ export default function App() {
       formData: {
         ...quote.formData,
         _quoteGroupId: getQuoteGroupId(quote),
-        _quoteVersion: getQuoteVersion(quote) + 1,
+        _quoteVersion: getNextQuoteVersion(quotes, quote),
         _createdAt: new Date().toISOString()
       }
     };

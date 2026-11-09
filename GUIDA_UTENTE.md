@@ -58,7 +58,7 @@ Nome cliente, location, tipo evento, intervallo date evento e stato (Tutti / In 
 
 ### 3.3 Nuova versione (+)
 
-Crea un nuovo preventivo **per lo stesso evento**: copia tutti i dati, gli assegna la lettera successiva (B, C…) e lo apre in modifica. Usalo per proporre alternative (formazione, durata, prezzo diversi).
+Crea un nuovo preventivo **per lo stesso evento**: copia tutti i dati e lo apre in modifica. La lettera segue la versione più alta ancora presente nell'evento, comprese quelle archiviate, indipendentemente dal preventivo da cui si parte: per esempio, se esistono A, B e C, anche usando il + su A si crea D. Se la versione più alta viene eliminata definitivamente, la sua lettera può essere riutilizzata. Usalo per proporre alternative (formazione, durata, prezzo diversi).
 
 ### 3.4 Usa come template
 

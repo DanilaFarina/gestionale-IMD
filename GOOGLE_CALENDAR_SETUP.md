@@ -1,6 +1,12 @@
-# Google Calendar sync for approved quotes
+# Google Calendar sync for quotes (options and confirmed events)
 
-When a quote is marked **Approvato**, an event is created automatically in the Google Calendar of **giovannigargini@gmail.com** on the event date. When the quote changes, the event is kept up to date. When the quote is no longer approved, the event is removed.
+As soon as a quote has an event date, an event is created automatically in the Google Calendar of **giovannigargini@gmail.com** on that date:
+
+- **Pending** quote ("In attesa"): the title starts with **`Opz.`**, meaning the date is on hold. Example: `Opz. IMD – Rossi (Matrimonio)`.
+- **Approved** quote ("Approvato"): the prefix is removed. Example: `IMD – Rossi (Matrimonio)`.
+- All versions archived or deleted: the event is removed.
+
+There is **one event per event**: all versions of the same quote (same `_quoteGroupId`) share a single calendar event. The event shows the approved version, or else the latest pending one, just like the dashboard row. When a quote changes, the event is kept up to date.
 
 > **Who does what**
 > - **Giovanni** (calendar owner): only step 2, sharing the calendar. It takes about 2 minutes.
@@ -16,15 +22,16 @@ When a quote is marked **Approvato**, an event is created automatically in the G
  approve / edit / archive  ──update──▶  quotes table
                                            │
                                            │ AFTER trigger "quotes_calendar_sync"
-                                           │ (fires only if status/date/times/place changed
-                                           │  and the quote is, or was, approved)
+                                           │ (fires only if status/date/times/place/version changed
+                                           │  and the quote isn't just sitting in the archive)
                                            ▼
-                                        pg_net POST { op, quote_id }
+                                        pg_net POST { op, group_ids }
                                            │  header x-sync-secret
                                            ▼
                                         Edge Function "sync-calendar"
-                                           │ 1. re-reads the quote from the DB
-                                           │ 2. builds the event
+                                           │ 1. re-reads all versions of the event from the DB
+                                           │ 2. picks the representative version and builds the
+                                           │    event ("Opz." prefix unless approved)
                                            │ 3. creates/updates/deletes  ──────────▶  Calendar API
                                            │                                          (service account,
                                            │ 4. writes back google_event_id,           calendar shared
@@ -36,23 +43,28 @@ Design choices:
 
 - **The work happens on the server, not in the browser.** Nobody has to log in to Google, no token expires on the client, the sync works whichever user approves, and the Google credentials never reach the public site.
 - **A service account writes to Giovanni's calendar.** The calendar is shared with a "robot" Google account that only has permission to edit events. No password or OAuth login of Giovanni's is stored anywhere.
-- **The event ID is derived from the quote ID** (`imd` + hex of `PRV-123`). The same quote always maps to the same Google event, so repeated or concurrent calls can't create duplicates, and an event deleted earlier is simply restored if the quote is approved again.
-- **The function always re-reads the quote** instead of trusting the trigger payload. Whatever order the calls arrive in, the calendar ends up matching the current state of the database.
+- **The event ID is derived from the event group ID** (`imd` + hex of the `_quoteGroupId`, or of the quote ID for quotes without a group). All versions of the same event always map to the same Google event, so repeated or concurrent calls can't create duplicates. Moving from "Opz." to approved, or switching the approved version, is just an update of the same event.
+- **The function always re-reads the whole group** instead of trusting the trigger payload. Whatever order the calls arrive in, the calendar ends up matching the current state of the database.
+- **Approving happens in one database transaction** (the `approve_quote` RPC, step 7c). Putting the old version back to pending and approving the new one is a single write, so the calendar never briefly sees the event as "no version approved".
 
 ### Defaults built into this guide (easy to change in step 5)
 
 | Topic | Behaviour |
 |---|---|
-| Title | `IMD – {cliente} ({tipo})`, for example `IMD – Rossi (Matrimonio)` |
+| Title | Pending: `Opz. IMD – {cliente} ({tipo})`. Approved: `IMD – {cliente} ({tipo})`. |
+| Which version is shown | The approved one (if there are several, the one with a contract), otherwise the latest pending version. Archived versions are ignored. Same rule as `pickGroupRepresentative` in the app. |
 | Date | The contract's `dataEvento` if it can be parsed, otherwise the quote's `date` |
 | Time | Start = setup start (if enabled) or the first moment's start. End = the last moment's end. Crossing midnight is handled. No times at all → all-day event. Only a start time → 3 hours by default. |
 | Time zone | `Europe/Rome` |
 | Place | `{nomeLocation}, {address}` (contract values take priority) |
 | Description | Event type, place, program, quote ID and link to the app. **No prices.** |
-| Un-approve, archive, delete, or date changed to "Da definire" | The event is **deleted** |
-| Approving another version of the same event | The old version's event is deleted and the new version's event is created |
+| New quote saved with a date | `Opz.` event created right away (autosave included) |
+| Approve | Same event, prefix removed |
+| Un-approve ("Annulla approvazione") | Same event, back to `Opz.` |
+| Approving another version of the same event | Same event, updated with that version's data |
+| All versions archived or deleted, or the date changed to "Da definire" | The event is **deleted** |
 | Events edited by hand in Google Calendar | Overwritten at the next sync. The app is the source of truth. |
-| Already-approved quotes | Added once with the backfill (step 8) |
+| Existing quotes | Added once with the backfill (step 8): all approved events, plus pending ones from today onwards |
 
 ---
 
@@ -155,8 +167,9 @@ supabase functions new sync-calendar
 Replace `supabase/functions/sync-calendar/index.ts` with:
 
 ```ts
-// Sincronizza i preventivi approvati con Google Calendar.
-// Chiamata dal trigger quotes_calendar_sync con { op, quote_id }, oppure a mano con { all: true }.
+// Sincronizza gli eventi (gruppi di preventivi) con Google Calendar:
+// in attesa → "Opz. IMD – …", approvato → "IMD – …", tutto archiviato/eliminato → evento rimosso.
+// Chiamata dal trigger quotes_calendar_sync con { op, group_ids }, oppure a mano con { all: true }.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { importPKCS8, SignJWT } from 'npm:jose@5.9.6';
 
@@ -224,9 +237,9 @@ async function gcal(method: string, path = '', body?: unknown): Promise<Response
   });
 }
 
-// ID evento deterministico: "imd" + esadecimale dell'id preventivo (caratteri ammessi da Google: a-v, 0-9)
-const eventIdFor = (quoteId: string) =>
-  'imd' + Array.from(new TextEncoder().encode(quoteId)).map(b => b.toString(16).padStart(2, '0')).join('');
+// ID evento deterministico: "imd" + esadecimale dell'id del gruppo (caratteri ammessi da Google: a-v, 0-9)
+const eventIdFor = (groupId: string) =>
+  'imd' + Array.from(new TextEncoder().encode(groupId)).map(b => b.toString(16).padStart(2, '0')).join('');
 
 // PUT aggiorna (e ripristina un evento cancellato); se non esiste lo crea con POST.
 async function upsertEvent(eventId: string, event: Record<string, unknown>) {
@@ -297,7 +310,34 @@ const toHHMM = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
 
 // deno-lint-ignore no-explicit-any
 type Json = Record<string, any>;
-type Quote = { id: string; status: string | null; client: string | null; type: string | null; date: string | null; location: string | null; form_data: Json | null };
+type Quote = { id: string; status: string | null; client: string | null; type: string | null; date: string | null; location: string | null; form_data: Json | null; created_at: string | null };
+
+const QUOTE_COLUMNS = 'id, status, client, type, date, location, form_data, created_at';
+
+// Stesse regole di getQuoteGroupId / pickGroupRepresentative in App.jsx (gli archiviati non contano)
+const groupIdOf = (q: Quote) => String(q.form_data?._quoteGroupId || q.id);
+const versionOf = (q: Quote) => Number(q.form_data?._quoteVersion) || 1;
+const createdOf = (q: Quote) => Date.parse(q.form_data?._createdAt || q.created_at || '') || 0;
+const STATUS_PRIORITY: Record<string, number> = { 'Approvato': 0, 'In attesa': 1 };
+
+function pickRepresentative(list: Quote[]): Quote | null {
+  return list
+    .filter(q => (q.status ?? '') in STATUS_PRIORITY)
+    .sort((a, b) =>
+      STATUS_PRIORITY[a.status!] - STATUS_PRIORITY[b.status!]
+      || Number(Boolean(b.form_data?.contractData)) - Number(Boolean(a.form_data?.contractData))
+      || versionOf(b) - versionOf(a)
+      || createdOf(b) - createdOf(a))[0] ?? null;
+}
+
+async function loadGroup(groupId: string): Promise<Quote[]> {
+  const { data, error } = await supabase
+    .from('quotes')
+    .select(QUOTE_COLUMNS)
+    .or(`id.eq."${groupId}",form_data->>_quoteGroupId.eq."${groupId}"`);
+  if (error) throw error;
+  return ((data ?? []) as Quote[]).filter(q => groupIdOf(q) === groupId);
+}
 
 function buildEvent(q: Quote): Json | null {
   const fd: Json = q.form_data ?? {};
@@ -335,7 +375,10 @@ function buildEvent(q: Quote): Json | null {
   const address = c.indirizzoLocation || fd.address || (q.location && q.location !== 'Da definire' ? q.location : '');
   const location = [venue, address].filter(Boolean).join(', ');
 
+  const approved = q.status === 'Approvato';
+
   const description = [
+    approved ? 'Stato: CONFERMATO' : 'Stato: OPZIONE (preventivo in attesa di approvazione)',
     q.type ? `Tipo evento: ${q.type}` : '',
     location ? `Location: ${location}` : '',
     program.length ? '\nProgramma:' : '',
@@ -348,7 +391,7 @@ function buildEvent(q: Quote): Json | null {
   ].filter(Boolean).join('\n');
 
   return {
-    summary: `IMD – ${client}${q.type ? ` (${q.type})` : ''}`,
+    summary: `${approved ? '' : 'Opz. '}IMD – ${client}${q.type ? ` (${q.type})` : ''}`,
     location,
     description,
     ...timing,
@@ -360,46 +403,46 @@ function buildEvent(q: Quote): Json | null {
 
 // ───────────────────────── Sync ─────────────────────────
 
-async function saveSyncState(id: string, fields: Json) {
-  const { error } = await supabase.from('quotes').update(fields).eq('id', id);
-  if (error) console.error('Stato sync non salvato', id, error.message);
+// Lo stato di sync viene scritto su tutte le versioni del gruppo (il badge in dashboard legge quello del rappresentante)
+async function saveSyncState(list: Quote[], fields: Json) {
+  if (!list.length) return;
+  const ids = list.map(q => q.id);
+  const { error } = await supabase.from('quotes').update(fields).in('id', ids);
+  if (error) console.error('Stato sync non salvato', ids, error.message);
 }
 
-async function syncQuote(quoteId: string, op?: string): Promise<string> {
-  const eventId = eventIdFor(quoteId);
+async function syncGroup(groupId: string): Promise<string> {
+  const eventId = eventIdFor(groupId);
+  let list: Quote[] = [];
   try {
-    if (op === 'DELETE') {
-      await deleteEvent(eventId);
-      return 'deleted';
-    }
-    const { data: q, error } = await supabase
-      .from('quotes')
-      .select('id, status, client, type, date, location, form_data')
-      .eq('id', quoteId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!q) {
-      await deleteEvent(eventId);
-      return 'deleted';
-    }
+    list = await loadGroup(groupId);
+    const rep = pickRepresentative(list);
+    const event = rep ? buildEvent(rep) : null;
 
-    const event = q.status === 'Approvato' ? buildEvent(q as Quote) : null;
-    if (!event) {
+    if (!rep || !event) { // niente di attivo, oppure data "Da definire"
       await deleteEvent(eventId);
-      await saveSyncState(quoteId, { google_event_id: null, calendar_synced_at: new Date().toISOString(), calendar_sync_error: null });
+      await saveSyncState(list, { google_event_id: null, calendar_synced_at: new Date().toISOString(), calendar_sync_error: null });
       return 'removed';
     }
 
     await upsertEvent(eventId, event);
-    await saveSyncState(quoteId, { google_event_id: eventId, calendar_synced_at: new Date().toISOString(), calendar_sync_error: null });
-    return 'synced';
+    await saveSyncState(list, { google_event_id: eventId, calendar_synced_at: new Date().toISOString(), calendar_sync_error: null });
+    return rep.status === 'Approvato' ? 'confirmed' : 'option';
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('Sync fallita', quoteId, message);
-    if (op !== 'DELETE') await saveSyncState(quoteId, { calendar_sync_error: message.slice(0, 500) });
+    console.error('Sync fallita', groupId, message);
+    await saveSyncState(list, { calendar_sync_error: message.slice(0, 500) });
     throw err;
   }
 }
+
+const syncGroups = async (groupIds: string[]) => {
+  const results: Json[] = [];
+  for (const groupId of new Set(groupIds.map(String))) {
+    results.push({ groupId, result: await syncGroup(groupId).catch(e => `errore: ${e.message}`) });
+  }
+  return results;
+};
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -410,24 +453,25 @@ Deno.serve(async (req) => {
 
   const body: Json = await req.json().catch(() => ({}));
 
-  // Backfill / risincronizzazione completa
+  // Backfill / risincronizzazione completa: tutti gli approvati, gli in attesa da oggi in poi,
+  // e tutto ciò che ha già un evento (così gli eventi orfani vengono ripuliti)
   if (body.all) {
-    const { data, error } = await supabase.from('quotes').select('id').eq('status', 'Approvato');
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('id, gid:form_data->>_quoteGroupId')
+      .or(`status.eq.Approvato,and(status.eq."In attesa",date.gte.${today}),google_event_id.not.is.null`);
     if (error) return Response.json({ error: error.message }, { status: 500 });
-    const results: Json[] = [];
-    for (const { id } of data ?? []) {
-      results.push({ id, result: await syncQuote(String(id)).catch(e => `errore: ${e.message}`) });
-    }
+    const results = await syncGroups((data ?? []).map(r => r.gid || r.id));
     return Response.json({ count: results.length, results });
   }
 
-  if (!body.quote_id) return new Response('quote_id mancante', { status: 400 });
-  try {
-    const result = await syncQuote(String(body.quote_id), body.op);
-    return Response.json({ quote_id: body.quote_id, result });
-  } catch (err) {
-    return Response.json({ quote_id: body.quote_id, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
-  }
+  // Chiamata dal trigger (o a mano per un singolo gruppo)
+  const groupIds: string[] = Array.isArray(body.group_ids) ? body.group_ids : [];
+  if (!groupIds.length) return new Response('group_ids mancante', { status: 400 });
+  const results = await syncGroups(groupIds);
+  const failed = results.some(r => String(r.result).startsWith('errore'));
+  return Response.json({ results }, { status: failed ? 500 : 200 });
 });
 ```
 
@@ -453,19 +497,20 @@ supabase functions deploy sync-calendar --no-verify-jwt
 
 ## 6. Test the function by hand (before the trigger exists)
 
-1. In the app, approve a quote that has a date (or use one that is already approved). Note its ID, for example `PRV-123`.
+1. Pick a pending quote that has a date. Note its group ID: `form_data._quoteGroupId`, or the quote ID (for example `PRV-123`) if it has none. You can find it in the Table Editor, or with `select id, form_data->>'_quoteGroupId' from quotes where client ilike '%rossi%';`.
 2. Run:
 
 ```bash
 curl -s -X POST "https://jcazkicbnkektaxihhmx.supabase.co/functions/v1/sync-calendar" \
   -H "Content-Type: application/json" \
   -H "x-sync-secret: $SYNC_SECRET" \
-  -d '{"quote_id":"PRV-123"}'
-# → {"quote_id":"PRV-123","result":"synced"}
+  -d '{"group_ids":["PRV-123"]}'
+# → {"results":[{"groupId":"PRV-123","result":"option"}]}
 ```
 
-3. The event should appear in the calendar, and the row in `quotes` should have `google_event_id` and `calendar_synced_at` filled in.
-4. If it fails, read the error in the response, in `quotes.calendar_sync_error`, or in **Dashboard → Edge Functions → sync-calendar → Logs**. Then see [Troubleshooting](#11-troubleshooting).
+3. An `Opz. IMD – …` event should appear in the calendar, and every version of that quote in `quotes` should have `google_event_id` and `calendar_synced_at` filled in.
+4. Approve the quote in the app, run the same `curl` again, and check that the title loses `Opz.` (`"result":"confirmed"`).
+5. If it fails, read the error in the response, in `quotes.calendar_sync_error`, or in **Dashboard → Edge Functions → sync-calendar → Logs**. Then see [Troubleshooting](#11-troubleshooting).
 
 ---
 
@@ -492,6 +537,15 @@ supabase migration new calendar_sync_trigger
 ```sql
 create extension if not exists pg_net;
 
+-- Gruppo evento di un preventivo (come getQuoteGroupId in App.jsx)
+create or replace function public.quote_group_id(q public.quotes)
+returns text
+language sql
+immutable
+as $$
+  select coalesce(nullif(q.form_data ->> '_quoteGroupId', ''), q.id::text);
+$$;
+
 -- Campi che influenzano l'evento: il trigger scatta solo se uno di questi cambia
 -- (l'autosalvataggio dei campi economici, i pagamenti musicisti, ecc. non chiamano Google)
 create or replace function public.quote_calendar_fields(q public.quotes)
@@ -501,6 +555,9 @@ immutable
 as $$
   select jsonb_build_object(
     'status',       q.status,
+    'groupId',      public.quote_group_id(q),
+    'version',      q.form_data -> '_quoteVersion',
+    'hasContract',  (q.form_data -> 'contractData') is not null,
     'date',         q.date,
     'client',       q.client,
     'type',         q.type,
@@ -529,30 +586,29 @@ security definer
 set search_path = public
 as $$
 declare
-  v_id     text;
+  v_groups text[];
   v_url    text;
   v_secret text;
 begin
   if tg_op = 'DELETE' then
-    if old.status is distinct from 'Approvato' and old.google_event_id is null then
-      return old;
+    if old.status = 'Archiviato' and old.google_event_id is null then
+      return old; -- archiviato e senza evento: niente da fare
     end if;
-    v_id := old.id::text;
+    v_groups := array[public.quote_group_id(old)];
   elsif tg_op = 'INSERT' then
-    if new.status is distinct from 'Approvato' then
+    if new.status = 'Archiviato' then
       return new;
     end if;
-    v_id := new.id::text;
+    v_groups := array[public.quote_group_id(new)];
   else -- UPDATE
     if public.quote_calendar_fields(new) is not distinct from public.quote_calendar_fields(old) then
       return new; -- nessun campo rilevante cambiato (incluse le scritture della funzione stessa)
     end if;
-    if new.status is distinct from 'Approvato'
-       and old.status is distinct from 'Approvato'
-       and new.google_event_id is null then
-      return new; -- non era e non è approvato: niente da fare
+    if new.status = 'Archiviato' and old.status = 'Archiviato' then
+      return new; -- modifiche a un preventivo che resta in archivio
     end if;
-    v_id := new.id::text;
+    -- se il preventivo cambia gruppo vanno risincronizzati entrambi
+    v_groups := array(select distinct g from unnest(array[public.quote_group_id(old), public.quote_group_id(new)]) as g);
   end if;
 
   -- Un problema di sync non deve MAI bloccare il salvataggio del preventivo
@@ -564,13 +620,13 @@ begin
     else
       perform net.http_post(
         url     := v_url,
-        body    := jsonb_build_object('op', tg_op, 'quote_id', v_id),
+        body    := jsonb_build_object('op', tg_op, 'group_ids', to_jsonb(v_groups)),
         headers := jsonb_build_object('Content-Type', 'application/json', 'x-sync-secret', v_secret),
         timeout_milliseconds := 15000
       );
     end if;
   exception when others then
-    raise warning 'calendar sync non accodata per %: %', v_id, sqlerrm;
+    raise warning 'calendar sync non accodata per %: %', v_groups, sqlerrm;
   end;
 
   if tg_op = 'DELETE' then
@@ -590,12 +646,58 @@ Apply it with `supabase db push`, or paste it into the SQL Editor.
 
 Notes:
 - `pg_net` sends the request **after the transaction commits**, so the function always reads saved data.
-- `handleApprove` first puts the old version back to "In attesa", then approves the new one. That produces two separate calls, one per row, and that's correct.
-- While someone edits the program of an **approved** quote, autosave (about every 1.5 s) triggers a sync each time the times or titles change. That's well within the free quotas: 500k function calls/month on Supabase, 1M requests/day on the Calendar API.
+- Pending quotes are synced too, so while someone edits a quote (pending or approved), autosave (about every 1.5 s) triggers a sync each time the date, client, place, times or titles change. That's well within the free quotas: 500k function calls/month on Supabase, 1M requests/day on the Calendar API.
+
+### 7c. Approve in a single transaction
+
+Right now `handleApprove` makes **two** separate writes: first it puts the old approved version back to "In attesa", then it approves the new one. Each write sends its own sync request, and the requests can arrive in any order. If the first one is processed last, it can briefly put `Opz.` back on an event that has just been approved. Doing both changes in one statement fixes this, because every sync request then reads the final state.
+
+Add this migration (`supabase migration new approve_quote_rpc`):
+
+```sql
+-- Approva un preventivo e rimette "In attesa" gli altri approvati dello stesso evento, in un'unica scrittura
+create or replace function public.approve_quote(p_id text)
+returns void
+language plpgsql
+security invoker          -- rispetta le RLS dell'utente loggato
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select public.quote_group_id(q) into v_group from public.quotes q where q.id = p_id;
+  if v_group is null then
+    raise exception 'Preventivo % non trovato', p_id;
+  end if;
+
+  update public.quotes q
+  set status = case when q.id = p_id then 'Approvato' else 'In attesa' end
+  where q.id = p_id
+     or (q.status = 'Approvato' and public.quote_group_id(q) = v_group);
+end;
+$$;
+
+grant execute on function public.approve_quote(text) to authenticated;
+```
+
+Then, in `handleApprove` ([src/App.jsx](src/App.jsx)), replace the two `supabase.from('quotes').update(...)` calls (the `demotedIds` block and the approve call) with:
+
+```jsx
+const { error } = await supabase.rpc('approve_quote', { p_id: id });
+if (error) {
+  alert('Errore: ' + error.message);
+  return;
+}
+setQuotes(applyStatuses(quotes));
+```
+
+The confirmation dialog and `applyStatuses` stay as they are. The function demotes exactly the same rows that `previouslyApproved` computes in the app.
 
 ---
 
-## 8. Backfill quotes that are already approved
+## 8. Backfill existing quotes
+
+This syncs every event that has an approved version, plus pending ones dated **today or later**. Old pending quotes are skipped, so the calendar isn't filled with past options.
 
 ```bash
 curl -s -X POST "https://jcazkicbnkektaxihhmx.supabase.co/functions/v1/sync-calendar" \
@@ -616,7 +718,7 @@ The same call is safe to run again at any time: it updates existing events and n
 - Saving a quote would overwrite `google_event_id` / `calendar_sync_error` with stale values.
 - **Duplicating** a quote would copy them onto the new row.
 
-The calendar would still be correct (event IDs come from the quote ID), but the UI would be misleading. Keep them in a separate state in `App` ([src/App.jsx](src/App.jsx), `fetchQuotes`):
+The calendar would still be correct (event IDs come from the group ID), but the UI would be misleading. Keep them in a separate state in `App` ([src/App.jsx](src/App.jsx), `fetchQuotes`):
 
 ```jsx
 const [calendarSync, setCalendarSync] = useState({});
@@ -641,20 +743,26 @@ setQuotes(data.map(({ form_data, created_at, google_event_id, calendar_synced_at
 
 ### 9b. Icon in the dashboard
 
-Pass `calendarSync={calendarSync}` to `<Dashboard ... />` and add it to the `Dashboard` props. Next to the status icon of approved rows (group row and single row), add:
+Pass `calendarSync={calendarSync}` to `<Dashboard ... />` and add it to the `Dashboard` props. Next to the status icon of the group row (and of single rows), add:
 
 ```jsx
-import { CalendarCheck, CalendarX } from 'lucide-react';
+import { CalendarCheck, CalendarClock, CalendarX } from 'lucide-react';
 
-const CalendarBadge = ({ sync }) => {
+const CalendarBadge = ({ sync, approved }) => {
   if (sync?.error) return <CalendarX size={16} className="text-red-500" title={`Calendario: ${sync.error}`} />;
-  if (sync?.eventId) return <CalendarCheck size={16} className="text-blue-500" title="Nel calendario di Giovanni" />;
-  return null;
+  if (!sync?.eventId) return null;
+  return approved
+    ? <CalendarCheck size={16} className="text-blue-500" title="Confermato nel calendario di Giovanni" />
+    : <CalendarClock size={16} className="text-amber-500" title="Opzione (Opz.) nel calendario di Giovanni" />;
 };
 
-// e.g. next to the CheckCircle of approved quotes:
-{quote.status === 'Approvato' && <CalendarBadge sync={calendarSync[quote.id]} />}
+// group row (representative = version shown on the calendar):
+<CalendarBadge sync={calendarSync[representative.id]} approved={groupStatus === 'Approvato'} />
+// single row:
+{quote.status !== 'Archiviato' && <CalendarBadge sync={calendarSync[quote.id]} approved={quote.status === 'Approvato'} />}
 ```
+
+The function writes the sync state on **all** versions of the event, so every row of the group shows the same badge.
 
 The sync runs a second or two after the save, so the icon appears at the next data reload (`fetchQuotes`). To see it immediately, you can call `setTimeout(fetchQuotes, 3000)` at the end of `handleApprove`.
 
@@ -675,17 +783,20 @@ Then run the backfill (step 8) once more against the real calendar. Delete the t
 
 | # | Action in the app | Expected in Google Calendar |
 |---|---|---|
-| 1 | Approve a quote with date and times | Event created on that date, with correct times (Rome time) |
-| 2 | Change a moment's time on the approved quote | Event times update |
-| 3 | Last moment ends after midnight (e.g. 20:00 → 01:00) | Event ends at 01:00 the next day |
-| 4 | Approved quote with no times | All-day event |
-| 5 | Approve another version of the same event | Old event disappears, new one appears |
-| 6 | Un-approve ("Annulla approvazione") | Event deleted |
-| 7 | Re-approve the same quote | Event comes back (same ID, no duplicate) |
-| 8 | Archive or delete an approved quote | Event deleted |
-| 9 | Fill in the contract with a different date or venue | Event follows the contract data |
-| 10 | Change a price only | **Nothing** happens (no call to Google) |
-| 11 | Run the backfill twice | No duplicates |
+| 1 | Create a new quote and set a date | `Opz. IMD – …` event created on that date |
+| 2 | Create a second version of the same quote (pending) | **Still one** `Opz.` event, now showing the latest version |
+| 3 | Approve one version | Same event, `Opz.` removed, data of the approved version |
+| 4 | Approve the *other* version (confirm the dialog) | Same event, updated to that version, still without `Opz.` |
+| 5 | Un-approve ("Annulla approvazione") | Same event, back to `Opz.` |
+| 6 | Change a moment's time | Event times update |
+| 7 | Last moment ends after midnight (e.g. 20:00 → 01:00) | Event ends at 01:00 the next day |
+| 8 | Quote with no times | All-day event |
+| 9 | Change the date to empty / "Da definire" | Event deleted |
+| 10 | Archive all versions, or delete them | Event deleted |
+| 11 | Archive only the approved version while a pending one exists | Event goes back to `Opz.` with the pending version |
+| 12 | Fill in the contract with a different date or venue | Event follows the contract data |
+| 13 | Change a price only | **Nothing** happens (no call to Google) |
+| 14 | Run the backfill twice | No duplicates; no `Opz.` events in the past |
 
 ---
 
@@ -732,7 +843,8 @@ Function logs are in **Dashboard → Edge Functions → sync-calendar → Logs**
 ### Customising
 
 All of these are in `buildEvent` in `supabase/functions/sync-calendar/index.ts`:
-- Title or description format.
+- Title or description format, including the `Opz. ` prefix in `summary`.
+- A different colour for options, for example `colorId: approved ? '10' : '8'` (green confirmed, grey options).
 - Default duration (`DEFAULT_DURATION_MIN`).
 - A colour, for example `colorId: '10'` (green).
 - Adding the agreed price to the description: `c.compensoTotale`.
