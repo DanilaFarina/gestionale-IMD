@@ -23,7 +23,7 @@ Tutto ciò premesso, le parti convengono e stipulano quanto segue:
 1.2 La prestazione avrà una durata complessiva di **{{DURATA_ORE}}** ore, dalle **{{ORA_INIZIO}}** alle **{{ORA_FINE}}**, secondo il seguente programma di massima:
 - **{{ORARIO_MONTAGGIO}}** - Montaggio e sound check
 {{#each MOMENTI}}
-- **{{INIZIO}} – {{FINE}}** - Live "{{TITOLO}}" con pause di max 30 minuti.
+- **{{INIZIO}} – {{FINE}}** - {{TITOLO}}
 {{/each}}
 - **{{ORA_FINE}}** - Termine della prestazione
 

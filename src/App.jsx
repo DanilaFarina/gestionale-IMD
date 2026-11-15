@@ -2533,7 +2533,7 @@ function ContractPDF({ data, logoPng }) {
             <Text style={pdfStyles.bulletDot}>•</Text>
             <View style={{ flex: 1 }}>
               <Text style={pdfStyles.momentoLine}>
-                {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live "${m.titolo}"` : ''}
+                {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — ${m.titolo}` : ''}
               </Text>
               <PDFMomentDetails moment={m} />
             </View>
@@ -3007,7 +3007,7 @@ function ContractPDF_EN({ data, logoPng }) {
             <Text style={pdfStyles.bulletDot}>•</Text>
             <View style={{ flex: 1 }}>
               <Text style={pdfStyles.momentoLine}>
-                {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — Live performance "${m.titolo}"` : ''}
+                {[m.inizio, m.fine].filter(Boolean).join(' – ')}{m.titolo ? ` — ${m.titolo}` : ''}
               </Text>
               <PDFMomentDetails moment={m} english />
             </View>
