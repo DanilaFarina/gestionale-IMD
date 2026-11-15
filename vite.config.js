@@ -1,10 +1,15 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
-  base: '/gestionale-IMD/',
+// Lo staging gira su un altro repo Pages: VITE_BASE_PATH sovrascrive il percorso di produzione
+export default defineConfig(({ mode }) => {
+const env = loadEnv(mode, '.', 'VITE_')
+const base = `/${(env.VITE_BASE_PATH || 'gestionale-IMD').replace(/^\/+|\/+$/g, '')}/`
+
+return {
+  base,
   plugins: [
     react(),
     tailwindcss(),
@@ -20,29 +25,29 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',
-        scope: '/gestionale-IMD/',
-        start_url: '/gestionale-IMD/',
+        scope: base,
+        start_url: base,
         icons: [
           {
-            src: '/gestionale-IMD/pwa-192x192.png',
+            src: `${base}pwa-192x192.png`,
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/gestionale-IMD/pwa-512x512.png',
+            src: `${base}pwa-512x512.png`,
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/gestionale-IMD/pwa-maskable-192x192.png',
+            src: `${base}pwa-maskable-192x192.png`,
             sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: '/gestionale-IMD/pwa-maskable-512x512.png',
+            src: `${base}pwa-maskable-512x512.png`,
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
@@ -51,13 +56,13 @@ export default defineConfig({
         categories: ['productivity', 'business'],
         screenshots: [
           {
-            src: '/gestionale-IMD/screenshot1.png',
+            src: `${base}screenshot1.png`,
             sizes: '540x720',
             type: 'image/png',
             form_factor: 'narrow'
           },
           {
-            src: '/gestionale-IMD/screenshot2.png',
+            src: `${base}screenshot2.png`,
             sizes: '1280x720',
             type: 'image/png',
             form_factor: 'wide'
@@ -83,4 +88,5 @@ export default defineConfig({
       }
     })
   ],
+}
 })

@@ -1,6 +1,6 @@
 # Google Calendar sync for quotes (options and confirmed events)
 
-As soon as a quote has an event date, an event is created automatically in the Google Calendar of **giovannigargini@gmail.com** on that date:
+As soon as a quote has an event date, an event is created automatically in the Google Calendar of **italianmusicdesigner@gmail.com** on that date:
 
 - **Pending** quote ("In attesa"): the title starts with **`Opz.`**, meaning the date is on hold. Example: `Opz. IMD – Rossi (Matrimonio)`.
 - **Approved** quote ("Approvato"): the prefix is removed. Example: `IMD – Rossi (Matrimonio)`.
@@ -64,7 +64,7 @@ Design choices:
 | Approving another version of the same event | Same event, updated with that version's data |
 | All versions archived or deleted, or the date changed to "Da definire" | The event is **deleted** |
 | Events edited by hand in Google Calendar | Overwritten at the next sync. The app is the source of truth. |
-| Existing quotes | Added once with the backfill (step 8): all approved events, plus pending ones from today onwards |
+| Quotes already present when sync is enabled | Not synced, including when edited or when a new version is added to their group |
 
 ---
 
@@ -84,7 +84,7 @@ Design choices:
    chmod 600 ~/secrets/imd-calendar-sa.json
    ```
 5. Copy the service account's email address. It looks like
-   `imd-calendar-sync@gestionale-imd.iam.gserviceaccount.com`. You need it in step 2.
+   `imd-calendar-sync@giovanni-489212.iam.gserviceaccount.com`. You need it in step 2.
 
 > The JSON key gives write access to the shared calendar. Never commit it, paste it in chats, or put it in `VITE_*` variables. The repo is public.
 
@@ -92,7 +92,7 @@ Design choices:
 
 ## 2. Giovanni: share the calendar with the service account
 
-This must be done from a **computer** (the mobile app has no sharing settings), logged in as **giovannigargini@gmail.com**:
+This must be done from a **computer** (the mobile app has no sharing settings), logged in as **italianmusicdesigner@gmail.com**:
 
 1. Open <https://calendar.google.com> → ⚙️ **Settings**.
 2. In the left column, under **Settings for my calendars**, click the main calendar (the one with Giovanni's name).
@@ -100,11 +100,11 @@ This must be done from a **computer** (the mobile app has no sharing settings), 
    - Paste the service account email from step 1.5.
    - Permission: **Make changes to events**.
    - **Send**. Google may warn that the address is outside the organization or can't receive email. That's fine.
-4. Under **Integrate calendar**, the **Calendar ID** should be `giovannigargini@gmail.com`. That's the value used below.
+4. Under **Integrate calendar**, the **Calendar ID** should be `italianmusicdesigner@gmail.com`. That's the value used below.
 
 Giovanni won't receive invitations. The events simply appear in the calendar, with the calendar's default reminders.
 
-> **Recommended for testing:** before using the real calendar, create a secondary calendar (Settings → **Add calendar → Create new calendar**, for example "IMD test"). Share it with the service account the same way, and use its Calendar ID (`...@group.calendar.google.com`) in step 5. When everything works, switch the secret to `giovannigargini@gmail.com` (step 10).
+> **Recommended for testing:** before using the real calendar, create a secondary calendar (Settings → **Add calendar → Create new calendar**, for example "IMD test"). Share it with the service account the same way, and use its Calendar ID (`...@group.calendar.google.com`) in step 5. When everything works, switch the secret to `italianmusicdesigner@gmail.com` (step 10).
 
 ---
 
@@ -485,9 +485,9 @@ SYNC_SECRET=$(openssl rand -hex 32)
 echo "$SYNC_SECRET"   # save it in a password manager: you need it again in step 7
 
 supabase secrets set \
-  GOOGLE_CALENDAR_ID="<test calendar ID, or giovannigargini@gmail.com>" \
+  GOOGLE_CALENDAR_ID="italianmusicdesigner@gmail.com" \
   CALENDAR_SYNC_SECRET="$SYNC_SECRET" \
-  GOOGLE_SERVICE_ACCOUNT_B64="$(base64 -i ~/secrets/imd-calendar-sa.json)"
+  GOOGLE_SERVICE_ACCOUNT_B64="$(base64 -i ~/secrets/giovanni-489212-a0c831676dce.json)"
 
 supabase functions deploy sync-calendar --no-verify-jwt
 # if the CLI complains about Docker: add --use-api
@@ -504,7 +504,7 @@ supabase functions deploy sync-calendar --no-verify-jwt
 curl -s -X POST "https://jcazkicbnkektaxihhmx.supabase.co/functions/v1/sync-calendar" \
   -H "Content-Type: application/json" \
   -H "x-sync-secret: $SYNC_SECRET" \
-  -d '{"group_ids":["PRV-123"]}'
+  -d '{"group_ids":["PRV-038"]}'
 # → {"results":[{"groupId":"PRV-123","result":"option"}]}
 ```
 
@@ -530,12 +530,25 @@ select vault.create_secret('<same value as $SYNC_SECRET>', 'calendar_sync_secret
 
 ### 7b. Trigger migration
 
+This installs automatic sync for quotes created from this point forward. It does not sync or update existing quotes; new versions added to an existing quote group are also left alone.
+
 ```bash
 supabase migration new calendar_sync_trigger
 ```
 
 ```sql
 create extension if not exists pg_net;
+
+create table if not exists public.calendar_sync_config (
+  singleton boolean primary key default true check (singleton),
+  enabled_at timestamptz not null default now()
+);
+
+insert into public.calendar_sync_config (singleton)
+values (true)
+on conflict (singleton) do nothing;
+
+revoke all on public.calendar_sync_config from anon, authenticated;
 
 -- Gruppo evento di un preventivo (come getQuoteGroupId in App.jsx)
 create or replace function public.quote_group_id(q public.quotes)
@@ -586,11 +599,27 @@ security definer
 set search_path = public
 as $$
 declare
-  v_groups text[];
-  v_url    text;
-  v_secret text;
+  v_groups          text[];
+  v_url             text;
+  v_secret          text;
+  v_sync_enabled_at timestamptz;
 begin
+  select enabled_at into v_sync_enabled_at
+  from public.calendar_sync_config
+  where singleton;
+
+  if v_sync_enabled_at is null then
+    raise warning 'calendar sync non accodata: data di attivazione mancante';
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
+  end if;
+
   if tg_op = 'DELETE' then
+    if old.created_at is null or old.created_at < v_sync_enabled_at then
+      return old; -- non toccare preventivi esistenti prima dell'attivazione
+    end if;
     if old.status = 'Archiviato' and old.google_event_id is null then
       return old; -- archiviato e senza evento: niente da fare
     end if;
@@ -609,6 +638,23 @@ begin
     end if;
     -- se il preventivo cambia gruppo vanno risincronizzati entrambi
     v_groups := array(select distinct g from unnest(array[public.quote_group_id(old), public.quote_group_id(new)]) as g);
+  end if;
+
+  if tg_op = 'UPDATE'
+    and (old.created_at is null or old.created_at < v_sync_enabled_at) then
+    return new; -- gli aggiornamenti dei preventivi preesistenti non chiamano Google
+  end if;
+
+  if exists (
+    select 1
+    from public.quotes q
+    where public.quote_group_id(q) = any(v_groups)
+      and (q.created_at is null or q.created_at < v_sync_enabled_at)
+  ) then
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new; -- non modificare eventi di gruppi già esistenti
   end if;
 
   -- Un problema di sync non deve MAI bloccare il salvataggio del preventivo
@@ -646,13 +692,13 @@ Apply it with `supabase db push`, or paste it into the SQL Editor.
 
 Notes:
 - `pg_net` sends the request **after the transaction commits**, so the function always reads saved data.
-- Pending quotes are synced too, so while someone edits a quote (pending or approved), autosave (about every 1.5 s) triggers a sync each time the date, client, place, times or titles change. That's well within the free quotas: 500k function calls/month on Supabase, 1M requests/day on the Calendar API.
+- New pending quotes are synced too, so while someone edits one, autosave triggers a sync when event-related fields change. Existing quotes and groups are ignored.
 
 ### 7c. Approve in a single transaction
 
 Right now `handleApprove` makes **two** separate writes: first it puts the old approved version back to "In attesa", then it approves the new one. Each write sends its own sync request, and the requests can arrive in any order. If the first one is processed last, it can briefly put `Opz.` back on an event that has just been approved. Doing both changes in one statement fixes this, because every sync request then reads the final state.
 
-Add this migration (`supabase migration new approve_quote_rpc`):
+The migration `supabase/migrations/20261109205245_approve_quote_rpc.sql` defines this RPC. Apply it along with the other migrations using `supabase db push`:
 
 ```sql
 -- Approva un preventivo e rimette "In attesa" gli altri approvati dello stesso evento, in un'unica scrittura
@@ -680,7 +726,7 @@ $$;
 grant execute on function public.approve_quote(text) to authenticated;
 ```
 
-Then, in `handleApprove` ([src/App.jsx](src/App.jsx)), replace the two `supabase.from('quotes').update(...)` calls (the `demotedIds` block and the approve call) with:
+In `handleApprove` ([src/App.jsx](src/App.jsx)), keep the confirmation dialog, the `applyStatuses` helper, and the development-mode branch. For the Supabase branch, use the RPC instead of the two separate updates:
 
 ```jsx
 const { error } = await supabase.rpc('approve_quote', { p_id: id });
@@ -695,76 +741,25 @@ The confirmation dialog and `applyStatuses` stay as they are. The function demot
 
 ---
 
-## 8. Backfill existing quotes
+## 8. Backfill existing quotes — skip for now
 
-This syncs every event that has an approved version, plus pending ones dated **today or later**. Old pending quotes are skipped, so the calendar isn't filled with past options.
-
-```bash
-curl -s -X POST "https://jcazkicbnkektaxihhmx.supabase.co/functions/v1/sync-calendar" \
-  -H "Content-Type: application/json" \
-  -H "x-sync-secret: $SYNC_SECRET" \
-  -d '{"all":true}'
-```
-
-The same call is safe to run again at any time: it updates existing events and never duplicates them. That makes it the "resync everything" button too, for example after changing the title format in `buildEvent`.
+This step would sync existing events. **Do not run it for the current setup**: the goal is to leave existing quotes and calendar events unchanged. The trigger in step 7 already syncs new quotes automatically.
 
 ---
 
 ## 9. App: show the sync status (optional but recommended)
 
+Implemented in `src/App.jsx`.
+
 ### 9a. Keep the sync columns out of the quote objects
 
-`fetchQuotes` currently spreads **every** column into the quote object, and every save sends `...rest` back to Supabase. With the new columns, that has two effects:
-- Saving a quote would overwrite `google_event_id` / `calendar_sync_error` with stale values.
-- **Duplicating** a quote would copy them onto the new row.
-
-The calendar would still be correct (event IDs come from the group ID), but the UI would be misleading. Keep them in a separate state in `App` ([src/App.jsx](src/App.jsx), `fetchQuotes`):
-
-```jsx
-const [calendarSync, setCalendarSync] = useState({});
-
-// inside fetchQuotes, after the query:
-setCalendarSync(Object.fromEntries(data.map(q => [q.id, {
-  eventId: q.google_event_id,
-  syncedAt: q.calendar_synced_at,
-  error: q.calendar_sync_error,
-}])));
-setQuotes(data.map(({ form_data, created_at, google_event_id, calendar_synced_at, calendar_sync_error, ...rest }) => {
-  void google_event_id; void calendar_synced_at; void calendar_sync_error;
-  return {
-    ...rest,
-    formData: {
-      ...(form_data || {}),
-      _createdAt: created_at || form_data?._createdAt || ''
-    }
-  };
-}));
-```
+`fetchQuotes` stores `google_event_id`, `calendar_synced_at`, and `calendar_sync_error` in separate `calendarSync` state, not in quote objects. Since saves send `...rest` back to Supabase, this prevents overwriting sync values with stale data or copying them onto duplicated quotes.
 
 ### 9b. Icon in the dashboard
 
-Pass `calendarSync={calendarSync}` to `<Dashboard ... />` and add it to the `Dashboard` props. Next to the status icon of the group row (and of single rows), add:
+The app passes the status state to `Dashboard` and shows a badge next to the status icon on group, child, and single rows. The badge shows a red icon and error tooltip on failure, a blue check for an approved event, and an amber clock for an option. The function writes the sync state on **all** versions of the event.
 
-```jsx
-import { CalendarCheck, CalendarClock, CalendarX } from 'lucide-react';
-
-const CalendarBadge = ({ sync, approved }) => {
-  if (sync?.error) return <CalendarX size={16} className="text-red-500" title={`Calendario: ${sync.error}`} />;
-  if (!sync?.eventId) return null;
-  return approved
-    ? <CalendarCheck size={16} className="text-blue-500" title="Confermato nel calendario di Giovanni" />
-    : <CalendarClock size={16} className="text-amber-500" title="Opzione (Opz.) nel calendario di Giovanni" />;
-};
-
-// group row (representative = version shown on the calendar):
-<CalendarBadge sync={calendarSync[representative.id]} approved={groupStatus === 'Approvato'} />
-// single row:
-{quote.status !== 'Archiviato' && <CalendarBadge sync={calendarSync[quote.id]} approved={quote.status === 'Approvato'} />}
-```
-
-The function writes the sync state on **all** versions of the event, so every row of the group shows the same badge.
-
-The sync runs a second or two after the save, so the icon appears at the next data reload (`fetchQuotes`). To see it immediately, you can call `setTimeout(fetchQuotes, 3000)` at the end of `handleApprove`.
+After writes that can queue a sync, the app refreshes the status after a 3-second debounce.
 
 > In dev mode (`npm run dev`) the app uses localStorage and never writes to Supabase, so **the sync only runs in production**.
 
@@ -779,7 +774,7 @@ supabase secrets set GOOGLE_CALENDAR_ID=giovannigargini@gmail.com
 supabase functions deploy sync-calendar --no-verify-jwt   # re-deploy picks up the new secret
 ```
 
-Then run the backfill (step 8) once more against the real calendar. Delete the test calendar afterwards.
+Do not run the backfill in step 8. Delete the test calendar afterwards.
 
 | # | Action in the app | Expected in Google Calendar |
 |---|---|---|
@@ -796,7 +791,7 @@ Then run the backfill (step 8) once more against the real calendar. Delete the t
 | 11 | Archive only the approved version while a pending one exists | Event goes back to `Opz.` with the pending version |
 | 12 | Fill in the contract with a different date or venue | Event follows the contract data |
 | 13 | Change a price only | **Nothing** happens (no call to Google) |
-| 14 | Run the backfill twice | No duplicates; no `Opz.` events in the past |
+| 14 | Edit a quote that existed before enabling sync | No calendar event is created or changed |
 
 ---
 
@@ -849,4 +844,4 @@ All of these are in `buildEvent` in `supabase/functions/sync-calendar/index.ts`:
 - A colour, for example `colorId: '10'` (green).
 - Adding the agreed price to the description: `c.compensoTotale`.
 
-After changing any of them, re-deploy and run the backfill (step 8) to update existing events.
+After changing any of them, re-deploy the function. New quotes will use the updated format; do not run a full backfill unless you later decide to update existing events too.
