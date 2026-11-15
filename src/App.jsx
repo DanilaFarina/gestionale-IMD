@@ -51,7 +51,9 @@ import {
   CalendarX,
   RotateCcw,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Home,
+  ArrowRight
 } from 'lucide-react';
 
 const PRICE_ROUNDING_STEP = 50;
@@ -206,7 +208,89 @@ const fileDatePart = (value) => {
 const buildPdfFileName = (type, client, date, suffix = '') =>
   `${fileDatePart(date)}_${fileNamePart(client, 'Cliente')}_${type}${suffix ? `_${suffix}` : ''}.pdf`;
 
-function Dashboard({ quotes, calendarSync, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onUseAsTemplate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onOpenAnalytics, onOpenPayments }) {
+function HomePage({ onOpenQuotes, onOpenBalances, onOpenAnalytics, onOpenPayments }) {
+  const sections = [
+    {
+      title: 'Gestionale preventivi',
+      description: 'Consulta e gestisci preventivi, eventi e contratti.',
+      icon: FileText,
+      action: onOpenQuotes,
+      actionLabel: 'Apri i preventivi',
+      className: 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300',
+      primary: true,
+    },
+    {
+      title: 'Gestionale Saldi',
+      description: 'Controlla acconti, saldi e stato dei contratti degli eventi.',
+      icon: CheckCircle,
+      action: onOpenBalances,
+      actionLabel: 'Apri gestionale saldi',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300',
+    },
+    {
+      title: 'Analisi',
+      description: 'Monitora preventivi, contratti e andamento degli eventi.',
+      icon: BarChart3,
+      action: onOpenAnalytics,
+      actionLabel: 'Apri analisi',
+      className: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+    },
+    {
+      title: 'Pagamenti musicisti',
+      description: 'Assegna e controlla i compensi per gli eventi approvati.',
+      icon: Wallet,
+      action: onOpenPayments,
+      actionLabel: 'Apri pagamenti',
+      className: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in duration-300">
+      <header className="flex items-center gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <div className="flex items-center gap-5">
+          <img src={logoIMD} alt="IMD" className="h-20 w-auto md:h-24" />
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">Gestionale IMD</p>
+            <h1 className="mt-1 mb-0 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Benvenuto</h1>
+            <p className="mt-2 text-sm text-slate-500">Da dove vuoi iniziare?</p>
+          </div>
+        </div>
+      </header>
+
+      <section aria-labelledby="home-sections-title">
+        <div className="mb-4">
+          <h2 id="home-sections-title" className="text-xl font-bold text-slate-900">Le tue aree di lavoro</h2>
+          <p className="mt-1 text-sm text-slate-500">Accedi alle funzioni del gestionale.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {sections.map(({ title, description, icon: Icon, action, actionLabel, className, primary }) => (
+            <button
+              key={title}
+              type="button"
+              onClick={action}
+              className={`group flex min-h-56 flex-col items-start rounded-2xl border p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${className} ${primary ? 'md:col-span-3 md:min-h-48 md:flex-row md:items-center md:justify-between md:p-8' : ''}`}
+            >
+              <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                <Icon size={24} />
+              </span>
+              <span className={primary ? 'md:flex-1 md:px-6' : ''}>
+                <span className="block text-lg font-bold">{title}</span>
+                <span className="mt-2 block text-sm leading-6 text-slate-600">{description}</span>
+              </span>
+              <span className={`mt-auto flex items-center gap-2 pt-6 text-sm font-semibold ${primary ? 'md:mt-0 md:pt-0' : ''}`}>
+                {actionLabel}
+                <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Dashboard({ quotes, calendarSync, onApprove, onArchive, onRestore, onDelete, onEdit, onDuplicate, onUseAsTemplate, onCreateNew, onCreateBlankContract, onPrint, onCreateContract, onBackHome }) {
   const [clientFilter, setClientFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('Tutti');
@@ -296,19 +380,11 @@ function Dashboard({ quotes, calendarSync, onApprove, onArchive, onRestore, onDe
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onOpenPayments}
+            onClick={onBackHome}
             className="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors"
           >
-            <Wallet size={20} />
-            Pagamenti
-          </button>
-          <button
-            type="button"
-            onClick={onOpenAnalytics}
-            className="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors"
-          >
-            <BarChart3 size={20} />
-            Analisi
+            <Home size={20} />
+            Home
           </button>
           <button
             type="button"
@@ -316,7 +392,7 @@ function Dashboard({ quotes, calendarSync, onApprove, onArchive, onRestore, onDe
             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors"
           >
             <FileText size={20} />
-            Nuovo Contratto Bianco
+            Nuovo Contratto
           </button>
           <button
             type="button"
@@ -3903,6 +3979,168 @@ const createDefaultPayments = (quote) => {
 
 const getPaymentTotal = (payment) => Number(payment.base || 0) + (payment.additions || []).reduce((sum, addition) => sum + Number(addition.amount || 0), 0);
 
+function BalanceManagement({ quotes, onBack, onSave, onOpenContract }) {
+  const contractQuotes = useMemo(() => [...groupQuotesByEvent(quotes).values()]
+    .map(eventQuotes => {
+      const withContract = eventQuotes.filter(quote =>
+        quote.formData?.contractData && !quote.formData?._isBlankContract
+      );
+      return withContract.length ? pickGroupRepresentative(withContract) : null;
+    })
+    .filter(Boolean)
+    .sort((first, second) =>
+      String(first.formData?.contractData?.dataEvento || first.date || '')
+        .localeCompare(String(second.formData?.contractData?.dataEvento || second.date || ''))
+    ), [quotes]);
+  const [trackingByQuote, setTrackingByQuote] = useState({});
+  const trackingRef = useRef({});
+  const saveQueueRef = useRef(Promise.resolve());
+  const [saveStatus, setSaveStatus] = useState({});
+  const [saveErrors, setSaveErrors] = useState({});
+  const emptyTracking = { contractSigned: false, depositPaid: false, balancePaid: false, notes: '' };
+
+  const getTracking = (quote) => ({
+    ...emptyTracking,
+    ...(quote.formData?.balanceTracking || {}),
+    ...(trackingByQuote[quote.id] || {}),
+  });
+
+  const saveTracking = async (quote, tracking) => {
+    setSaveStatus(current => ({ ...current, [quote.id]: 'saving' }));
+    setSaveErrors(current => ({ ...current, [quote.id]: '' }));
+    const request = saveQueueRef.current
+      .catch(() => {})
+      .then(() => onSave(quote.id, tracking));
+    saveQueueRef.current = request;
+    try {
+      await request;
+      setSaveStatus(current => ({ ...current, [quote.id]: 'saved' }));
+    } catch (error) {
+      console.error('Errore salvataggio saldo evento:', error);
+      setSaveStatus(current => ({ ...current, [quote.id]: 'error' }));
+      setSaveErrors(current => ({ ...current, [quote.id]: error.message || 'Errore di salvataggio' }));
+    }
+  };
+
+  const updateTracking = (quote, field, value, shouldSave = false) => {
+    const previous = trackingRef.current[quote.id] || getTracking(quote);
+    const next = { ...previous, [field]: value };
+    trackingRef.current[quote.id] = next;
+    setTrackingByQuote(current => ({ ...current, [quote.id]: next }));
+    setSaveStatus(current => ({ ...current, [quote.id]: shouldSave ? 'saving' : 'unsaved' }));
+    if (shouldSave) void saveTracking(quote, next);
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex items-center gap-4">
+        <button type="button" onClick={onBack} title="Torna alla home" className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+          <ArrowLeft size={22} className="text-slate-600" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Gestionale Saldi</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Tieni sotto controllo contratti, acconti e saldi degli eventi.</p>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-4">Evento</th>
+                <th className="px-4 py-4 text-right">Prezzo acconto</th>
+                <th className="px-4 py-4 text-right">Saldo</th>
+                <th className="px-3 py-4 text-center">Contratto firmato</th>
+                <th className="px-3 py-4 text-center">Acconto pagato</th>
+                <th className="px-3 py-4 text-center">Saldo pagato</th>
+                <th className="px-4 py-4">Note</th>
+                <th className="px-4 py-4 text-center">Contratto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {contractQuotes.map(quote => {
+                const tracking = getTracking(quote);
+                const contract = quote.formData.contractData;
+                const total = Number(contract.compensoTotale || 0);
+                const deposit = Number(contract.importoAcconto || 0);
+                const balance = Math.max(0, total - deposit);
+                const eventName = contract.nomeCliente || quote.client || 'Evento senza nome';
+                const eventDate = contract.dataEvento || quote.date || '';
+
+                return (
+                  <tr key={quote.id} className="align-top hover:bg-slate-50/70">
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-slate-900">{eventName}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {[eventDate, contract.nomeLocation || quote.location, quote.type].filter(Boolean).join(' · ')}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-right font-medium text-slate-700">{formatEuro(deposit)}</td>
+                    <td className="px-4 py-4 text-right font-semibold text-slate-900">{formatEuro(balance)}</td>
+                    {[
+                      ['contractSigned', 'Contratto firmato'],
+                      ['depositPaid', 'Acconto pagato'],
+                      ['balancePaid', 'Saldo pagato'],
+                    ].map(([field, label]) => (
+                      <td key={field} className="px-3 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`${label}: ${eventName}`}
+                          checked={Boolean(tracking[field])}
+                          onChange={event => updateTracking(quote, field, event.target.checked, true)}
+                          className="h-5 w-5 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </td>
+                    ))}
+                    <td className="min-w-56 px-4 py-3">
+                      <textarea
+                        aria-label={`Note: ${eventName}`}
+                        value={tracking.notes}
+                        onChange={event => updateTracking(quote, 'notes', event.target.value)}
+                        onBlur={() => void saveTracking(quote, trackingRef.current[quote.id] || tracking)}
+                        rows={2}
+                        placeholder="Aggiungi una nota..."
+                        className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <p className={`mt-1 text-xs ${saveStatus[quote.id] === 'error' ? 'text-red-600' : 'text-slate-400'}`} aria-live="polite">
+                        {saveStatus[quote.id] === 'saving' && 'Salvataggio...'}
+                        {saveStatus[quote.id] === 'saved' && 'Salvato'}
+                        {saveStatus[quote.id] === 'unsaved' && 'Nota da salvare'}
+                        {saveStatus[quote.id] === 'error' && saveErrors[quote.id]}
+                      </p>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenContract(quote)}
+                        title={`Apri contratto: ${eventName}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium text-purple-700 transition-colors hover:bg-purple-50"
+                      >
+                        <FileText size={17} />
+                        Apri
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!contractQuotes.length && (
+                <tr>
+                  <td colSpan={8} className="px-6 py-14 text-center">
+                    <FileText size={30} className="mx-auto mb-3 text-slate-400" />
+                    <p className="font-semibold text-slate-800">Nessun evento con contratto</p>
+                    <p className="mt-1 text-sm text-slate-500">Gli eventi compariranno qui quando avranno un contratto compilato.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MusicianPayments({ quotes, onBack, onSave }) {
   const payableQuotes = useMemo(() => quotes
     .filter(quote => quote.status === 'Approvato')
@@ -4022,10 +4260,11 @@ export default function App() {
   const [calendarSync, setCalendarSync] = useState({});
   const calendarSyncRefreshTimeout = useRef(null);
 
-  // Gestione delle "Pagine": 'dashboard' | 'create' | 'print'
-  const [currentView, setCurrentView] = useState('dashboard');
+  // Gestione delle pagine principali e dei flussi di preventivo/contratto.
+  const [currentView, setCurrentView] = useState('home');
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [templateData, setTemplateData] = useState(null);
+  const [contractReturnView, setContractReturnView] = useState('dashboard');
 
   // In locale bypassa l'auth; in produzione usa Supabase Magic Link
   useEffect(() => {
@@ -4337,6 +4576,7 @@ export default function App() {
       alert('Dati del preventivo non disponibili per questo contratto.');
       return;
     }
+    setContractReturnView('dashboard');
     setSelectedQuote(quote);
     setCurrentView('contract');
   };
@@ -4345,6 +4585,7 @@ export default function App() {
   // cosi' chiudendo senza compilare nulla non resta nessun record vuoto.
   const handleCreateBlankContract = () => {
     const id = `CTR-${Date.now().toString(36).toUpperCase()}`;
+    setContractReturnView('dashboard');
     setSelectedQuote({
       id,
       client: '',
@@ -4422,6 +4663,26 @@ export default function App() {
     setQuotes(current => current.map(item => item.id === quoteId ? { ...item, formData: mergedFormData } : item));
   };
 
+  const handleSaveBalanceTracking = async (quoteId, balanceTracking) => {
+    const quote = quotes.find(item => item.id === quoteId);
+    if (!quote) throw new Error('Evento non trovato.');
+    const updatedQuote = {
+      ...quote,
+      formData: { ...(quote.formData || {}), balanceTracking },
+    };
+    if (import.meta.env.DEV) {
+      const updated = quotes.map(item => item.id === quoteId ? updatedQuote : item);
+      setQuotes(updated);
+      devSave(updated);
+      return;
+    }
+    const { error } = await supabase.from('quotes')
+      .update({ form_data: updatedQuote.formData })
+      .eq('id', quoteId);
+    if (error) throw error;
+    setQuotes(current => current.map(item => item.id === quoteId ? updatedQuote : item));
+  };
+
   // Schermata di caricamento iniziale / login
   if (authLoading) {
     return (
@@ -4480,7 +4741,14 @@ export default function App() {
           </div>
         )}
 
-        {currentView === 'dashboard' ? (
+        {currentView === 'home' ? (
+          <HomePage
+            onOpenQuotes={() => setCurrentView('dashboard')}
+            onOpenBalances={() => setCurrentView('balances')}
+            onOpenAnalytics={() => setCurrentView('analytics')}
+            onOpenPayments={() => setCurrentView('payments')}
+          />
+        ) : currentView === 'dashboard' ? (
           <Dashboard
             quotes={quotes}
             calendarSync={calendarSync}
@@ -4495,16 +4763,26 @@ export default function App() {
             onCreateBlankContract={handleCreateBlankContract}
             onPrint={handlePrint}
             onCreateContract={handleCreateContract}
-            onOpenAnalytics={() => setCurrentView('analytics')}
-            onOpenPayments={() => setCurrentView('payments')}
+            onBackHome={() => setCurrentView('home')}
+          />
+        ) : currentView === 'balances' ? (
+          <BalanceManagement
+            quotes={quotes}
+            onBack={() => setCurrentView('home')}
+            onSave={handleSaveBalanceTracking}
+            onOpenContract={quote => {
+              setContractReturnView('balances');
+              setSelectedQuote(quote);
+              setCurrentView('contract');
+            }}
           />
         ) : currentView === 'analytics' ? (
-          <Analytics quotes={quotes} onBack={() => setCurrentView('dashboard')} />
+          <Analytics quotes={quotes} onBack={() => setCurrentView('home')} />
         ) : currentView === 'payments' ? (
           <MusicianPayments
             quotes={quotes}
             onSave={handleSaveMusicianPayments}
-            onBack={() => setCurrentView('dashboard')}
+            onBack={() => setCurrentView('home')}
           />
         ) : currentView === 'print' && selectedQuote ? (
           <PrintView
@@ -4519,8 +4797,9 @@ export default function App() {
             quote={selectedQuote}
             onSave={handleSaveContract}
             onBack={() => {
-              setCurrentView('dashboard');
+              setCurrentView(contractReturnView);
               setSelectedQuote(null);
+              setContractReturnView('dashboard');
             }}
           />
         ) : currentView === 'edit' && selectedQuote?.formData ? (
