@@ -246,7 +246,7 @@ function HomePage({ onOpenQuotes, onOpenBalances, onOpenAnalytics, onOpenPayment
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in duration-300">
+    <div className="w-full space-y-8 animate-in fade-in duration-300">
       <header className="flex items-center gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <div className="flex items-center gap-5">
           <img src={logoIMD} alt="IMD" className="h-20 w-auto md:h-24" />
@@ -3746,7 +3746,7 @@ function ContractForm({ quote, onBack, onSave }) {
         </div>
       </div>
 
-      <div className="space-y-6 max-w-4xl">
+      <div className="w-full space-y-6">
         <ContractSection title="Dati Cliente" icon={User}>
           <ContractField label="Nome / Ragione Sociale" name="nomeCliente" value={data.nomeCliente} onChange={handle} opts={{ full: true }} />
           <ContractField label="Indirizzo / Sede legale" name="indirizzoCliente" value={data.indirizzoCliente} onChange={handle} opts={{ full: true, placeholder: 'Via, civico, CAP, Città' }} />
@@ -4723,8 +4723,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 font-sans p-4 md:p-8">
-      <div className="max-w-[1600px] mx-auto">
+    <div className="min-h-screen w-full bg-slate-100 text-slate-800 font-sans p-2 md:p-4">
+      <div className="w-full">
         {/* Barra utente + logout (solo in produzione) */}
         {!import.meta.env.DEV && session && (
           <div className="flex justify-end mb-4">
