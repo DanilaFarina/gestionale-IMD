@@ -3983,7 +3983,9 @@ function BalanceManagement({ quotes, onBack, onSave, onOpenContract }) {
   const contractQuotes = useMemo(() => [...groupQuotesByEvent(quotes).values()]
     .map(eventQuotes => {
       const withContract = eventQuotes.filter(quote =>
-        quote.formData?.contractData && !quote.formData?._isBlankContract
+        quote.status === 'Approvato'
+        && quote.formData?.contractData
+        && !quote.formData?._isBlankContract
       );
       return withContract.length ? pickGroupRepresentative(withContract) : null;
     })
