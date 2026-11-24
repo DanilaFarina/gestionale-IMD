@@ -2,8 +2,8 @@
 
 As soon as a quote has an event date, an event is created automatically in the Google Calendar of **italianmusicdesigner@gmail.com** on that date:
 
-- **Pending** quote ("In attesa"): the title starts with **`Opz.`**, meaning the date is on hold. Example: `Opz. IMD Matrimonio Rossi - Villa Bianca`.
-- **Approved** quote ("Approvato"): the prefix is removed. Example: `IMD Matrimonio Rossi - Villa Bianca`.
+- **Pending** quote ("In attesa"): the title starts with **`Opz.`**, meaning the date is on hold. Example: `Opz. IMD MAT Rossi`.
+- **Approved** quote ("Approvato"): the prefix is removed. Example: `IMD MAT Rossi`.
 - All versions archived or deleted: the event is removed.
 
 There is **one event per event**: all versions of the same quote (same `_quoteGroupId`) share a single calendar event. The event shows the approved version, or else the latest pending one, just like the dashboard row. When a quote changes, the event is kept up to date.
@@ -51,7 +51,7 @@ Design choices:
 
 | Topic | Behaviour |
 |---|---|
-| Title | Pending: `Opz. IMD {tipo evento} {cliente} - {nome location}`. Approved: the same without `Opz.`. The ` - {nome location}` part is left out when the venue name is empty. |
+| Title | Pending: `Opz. IMD {sigla tipo} {cliente}`. Approved: the same without `Opz.`. The venue is not in the title (it is in the event's Location field). Type codes: Matrimonio `MAT`, Aziendale `AZI`, Compleanno `COM`, Capodanno `CAP`, Concerto `CON`, Contratto `CTR`; any other type uses its first 3 letters in capitals (`EVENT_TYPE_CODES` in `buildEvent`). |
 | Which version is shown | The approved one (if there are several, the one with a contract), otherwise the latest pending version. Archived versions are ignored. Same rule as `pickGroupRepresentative` in the app. |
 | Date | The contract's `dataEvento` if it can be parsed, otherwise the quote's `date` |
 | Time | Start = setup start (if enabled) or the first moment's start. End = the last moment's end. Crossing midnight is handled. No times at all → all-day event. Only a start time → 3 hours by default. |
@@ -168,7 +168,7 @@ Replace `supabase/functions/sync-calendar/index.ts` with:
 
 ```ts
 // Sincronizza gli eventi (gruppi di preventivi) con Google Calendar:
-// in attesa → "Opz. IMD {tipo} {cliente} - {location}", approvato → stesso titolo senza "Opz.", tutto archiviato/eliminato → evento rimosso.
+// in attesa → "Opz. IMD {sigla tipo} {cliente}", approvato → stesso titolo senza "Opz.", tutto archiviato/eliminato → evento rimosso.
 // Chiamata dal trigger quotes_calendar_sync con { op, group_ids }, oppure a mano con { all: true }.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { importPKCS8, SignJWT } from 'npm:jose@5.9.6';
@@ -338,6 +338,13 @@ async function loadGroup(groupId: string): Promise<Quote[]> {
   return ((data ?? []) as Quote[]).filter(q => groupIdOf(q) === groupId);
 }
 
+// Sigla del tipo evento nel titolo; per i tipi non elencati: prime 3 lettere in maiuscolo
+const EVENT_TYPE_CODES: Record<string, string> = {
+  Matrimonio: 'MAT', Aziendale: 'AZI', Compleanno: 'COM', Capodanno: 'CAP', Concerto: 'CON', Contratto: 'CTR',
+};
+const eventTypeCode = (type: string | null) =>
+  type ? (EVENT_TYPE_CODES[type] ?? type.trim().slice(0, 3).toUpperCase()) : '';
+
 function buildEvent(q: Quote): Json | null {
   const fd: Json = q.form_data ?? {};
   const c: Json = fd.contractData ?? {};
@@ -393,7 +400,7 @@ function buildEvent(q: Quote): Json | null {
   ].filter(Boolean).join('\n');
 
   return {
-    summary: `${approved ? '' : 'Opz. '}${['IMD', q.type, client].filter(Boolean).join(' ')}${venue ? ` - ${venue}` : ''}`,
+    summary: `${approved ? '' : 'Opz. '}${['IMD', eventTypeCode(q.type), client].filter(Boolean).join(' ')}`,
     location,
     description,
     ...timing,

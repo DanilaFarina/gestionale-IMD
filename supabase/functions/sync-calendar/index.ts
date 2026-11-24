@@ -1,5 +1,5 @@
 // Sincronizza gli eventi (gruppi di preventivi) con Google Calendar:
-// in attesa → "Opz. IMD {tipo} {cliente} - {location}", approvato → stesso titolo senza "Opz.", tutto archiviato/eliminato → evento rimosso.
+// in attesa → "Opz. IMD {sigla tipo} {cliente}", approvato → stesso titolo senza "Opz.", tutto archiviato/eliminato → evento rimosso.
 // Chiamata dal trigger quotes_calendar_sync con { op, group_ids }, oppure a mano con { all: true }.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { importPKCS8, SignJWT } from 'npm:jose@5.9.6';
@@ -169,6 +169,13 @@ async function loadGroup(groupId: string): Promise<Quote[]> {
   return ((data ?? []) as Quote[]).filter(q => groupIdOf(q) === groupId);
 }
 
+// Sigla del tipo evento nel titolo; per i tipi non elencati: prime 3 lettere in maiuscolo
+const EVENT_TYPE_CODES: Record<string, string> = {
+  Matrimonio: 'MAT', Aziendale: 'AZI', Compleanno: 'COM', Capodanno: 'CAP', Concerto: 'CON', Contratto: 'CTR',
+};
+const eventTypeCode = (type: string | null) =>
+  type ? (EVENT_TYPE_CODES[type] ?? type.trim().slice(0, 3).toUpperCase()) : '';
+
 function buildEvent(q: Quote): Json | null {
   const fd: Json = q.form_data ?? {};
   const c: Json = fd.contractData ?? {};
@@ -224,7 +231,7 @@ function buildEvent(q: Quote): Json | null {
   ].filter(Boolean).join('\n');
 
   return {
-    summary: `${approved ? '' : 'Opz. '}${['IMD', q.type, client].filter(Boolean).join(' ')}${venue ? ` - ${venue}` : ''}`,
+    summary: `${approved ? '' : 'Opz. '}${['IMD', eventTypeCode(q.type), client].filter(Boolean).join(' ')}`,
     location,
     description,
     ...timing,
