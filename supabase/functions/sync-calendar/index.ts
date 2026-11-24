@@ -1,11 +1,10 @@
 // Sincronizza gli eventi (gruppi di preventivi) con Google Calendar:
-// in attesa → "Opz. IMD – …", approvato → "IMD – …", tutto archiviato/eliminato → evento rimosso.
+// in attesa → "Opz. IMD {tipo} {cliente} - {location}", approvato → stesso titolo senza "Opz.", tutto archiviato/eliminato → evento rimosso.
 // Chiamata dal trigger quotes_calendar_sync con { op, group_ids }, oppure a mano con { all: true }.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { importPKCS8, SignJWT } from 'npm:jose@5.9.6';
 
 const TZ = 'Europe/Rome';
-const APP_URL = Deno.env.get('APP_URL') ?? 'https://danilafarina.github.io/gestionale-IMD/';
 const DEFAULT_DURATION_MIN = 180; // se c'è solo l'orario di inizio
 const CALENDAR_ID = Deno.env.get('GOOGLE_CALENDAR_ID') ?? '';
 const SYNC_SECRET = Deno.env.get('CALENDAR_SYNC_SECRET') ?? '';
@@ -208,21 +207,24 @@ function buildEvent(q: Quote): Json | null {
 
   const approved = q.status === 'Approvato';
 
+  const frontman = String(c.nomeFrontman || fd.nomeFrontman || '').trim();
+  // Formazione: una riga per musicista, "Nome – Strumento"
+  const formazione = ((fd.formazione ?? []) as Json[])
+    .map(m => [String(m?.nome ?? '').trim(), String(m?.strumento ?? '').trim()].filter(Boolean).join(' – '))
+    .filter(Boolean);
+
   const description = [
-    approved ? 'Stato: CONFERMATO' : 'Stato: OPZIONE (preventivo in attesa di approvazione)',
-    q.type ? `Tipo evento: ${q.type}` : '',
-    location ? `Location: ${location}` : '',
-    program.length ? '\nProgramma:' : '',
+    frontman ? `Frontman: ${frontman}` : '',
+    formazione.length ? `${frontman ? '\n' : ''}Formazione:\n${formazione.join('\n')}` : '',
+    program.length ? `${frontman || formazione.length ? '\n' : ''}Programma:` : '',
     ...program.map(m => {
       const orario = [m.inizio, m.fine].filter(Boolean).join('–');
-      return `• ${orario ? `${orario} ` : ''}${m.titolo || 'Momento'}`;
+      return `${orario ? `${orario} ` : ''}${m.titolo || 'Momento'}`;
     }),
-    start != null && end == null ? '\nOrario di fine da definire (durata indicativa 3 ore).' : '',
-    `\nPreventivo ${q.id} – ${APP_URL}`,
   ].filter(Boolean).join('\n');
 
   return {
-    summary: `${approved ? '' : 'Opz. '}IMD – ${client}${q.type ? ` (${q.type})` : ''}`,
+    summary: `${approved ? '' : 'Opz. '}${['IMD', q.type, client].filter(Boolean).join(' ')}${venue ? ` - ${venue}` : ''}`,
     location,
     description,
     ...timing,

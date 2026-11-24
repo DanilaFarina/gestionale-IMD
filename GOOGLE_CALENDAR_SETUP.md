@@ -2,8 +2,8 @@
 
 As soon as a quote has an event date, an event is created automatically in the Google Calendar of **italianmusicdesigner@gmail.com** on that date:
 
-- **Pending** quote ("In attesa"): the title starts with **`Opz.`**, meaning the date is on hold. Example: `Opz. IMD – Rossi (Matrimonio)`.
-- **Approved** quote ("Approvato"): the prefix is removed. Example: `IMD – Rossi (Matrimonio)`.
+- **Pending** quote ("In attesa"): the title starts with **`Opz.`**, meaning the date is on hold. Example: `Opz. IMD Matrimonio Rossi - Villa Bianca`.
+- **Approved** quote ("Approvato"): the prefix is removed. Example: `IMD Matrimonio Rossi - Villa Bianca`.
 - All versions archived or deleted: the event is removed.
 
 There is **one event per event**: all versions of the same quote (same `_quoteGroupId`) share a single calendar event. The event shows the approved version, or else the latest pending one, just like the dashboard row. When a quote changes, the event is kept up to date.
@@ -51,13 +51,13 @@ Design choices:
 
 | Topic | Behaviour |
 |---|---|
-| Title | Pending: `Opz. IMD – {cliente} ({tipo})`. Approved: `IMD – {cliente} ({tipo})`. |
+| Title | Pending: `Opz. IMD {tipo evento} {cliente} - {nome location}`. Approved: the same without `Opz.`. The ` - {nome location}` part is left out when the venue name is empty. |
 | Which version is shown | The approved one (if there are several, the one with a contract), otherwise the latest pending version. Archived versions are ignored. Same rule as `pickGroupRepresentative` in the app. |
 | Date | The contract's `dataEvento` if it can be parsed, otherwise the quote's `date` |
 | Time | Start = setup start (if enabled) or the first moment's start. End = the last moment's end. Crossing midnight is handled. No times at all → all-day event. Only a start time → 3 hours by default. |
 | Time zone | `Europe/Rome` |
 | Place | `{nomeLocation}, {address}` (contract values take priority) |
-| Description | Event type, place, program, quote ID and link to the app. **No prices.** |
+| Description | `Frontman`, then `Formazione` (one line per musician, "Nome – Strumento", from the "Formazione" section of the quote form), then `Programma` with times. Nothing else: no prices, status or links. Sections with no data are left out. |
 | New quote saved with a date | `Opz.` event created right away (autosave included) |
 | Approve | Same event, prefix removed |
 | Un-approve ("Annulla approvazione") | Same event, back to `Opz.` |
@@ -168,13 +168,12 @@ Replace `supabase/functions/sync-calendar/index.ts` with:
 
 ```ts
 // Sincronizza gli eventi (gruppi di preventivi) con Google Calendar:
-// in attesa → "Opz. IMD – …", approvato → "IMD – …", tutto archiviato/eliminato → evento rimosso.
+// in attesa → "Opz. IMD {tipo} {cliente} - {location}", approvato → stesso titolo senza "Opz.", tutto archiviato/eliminato → evento rimosso.
 // Chiamata dal trigger quotes_calendar_sync con { op, group_ids }, oppure a mano con { all: true }.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { importPKCS8, SignJWT } from 'npm:jose@5.9.6';
 
 const TZ = 'Europe/Rome';
-const APP_URL = 'https://danilafarina.github.io/gestionale-IMD/';
 const DEFAULT_DURATION_MIN = 180; // se c'è solo l'orario di inizio
 const CALENDAR_ID = Deno.env.get('GOOGLE_CALENDAR_ID') ?? '';
 const SYNC_SECRET = Deno.env.get('CALENDAR_SYNC_SECRET') ?? '';
@@ -377,21 +376,24 @@ function buildEvent(q: Quote): Json | null {
 
   const approved = q.status === 'Approvato';
 
+  const frontman = String(c.nomeFrontman || fd.nomeFrontman || '').trim();
+  // Formazione: una riga per musicista, "Nome – Strumento"
+  const formazione = ((fd.formazione ?? []) as Json[])
+    .map(m => [String(m?.nome ?? '').trim(), String(m?.strumento ?? '').trim()].filter(Boolean).join(' – '))
+    .filter(Boolean);
+
   const description = [
-    approved ? 'Stato: CONFERMATO' : 'Stato: OPZIONE (preventivo in attesa di approvazione)',
-    q.type ? `Tipo evento: ${q.type}` : '',
-    location ? `Location: ${location}` : '',
-    program.length ? '\nProgramma:' : '',
+    frontman ? `Frontman: ${frontman}` : '',
+    formazione.length ? `${frontman ? '\n' : ''}Formazione:\n${formazione.join('\n')}` : '',
+    program.length ? `${frontman || formazione.length ? '\n' : ''}Programma:` : '',
     ...program.map(m => {
       const orario = [m.inizio, m.fine].filter(Boolean).join('–');
-      return `• ${orario ? `${orario} ` : ''}${m.titolo || 'Momento'}`;
+      return `${orario ? `${orario} ` : ''}${m.titolo || 'Momento'}`;
     }),
-    start != null && end == null ? '\nOrario di fine da definire (durata indicativa 3 ore).' : '',
-    `\nPreventivo ${q.id} – ${APP_URL}`,
   ].filter(Boolean).join('\n');
 
   return {
-    summary: `${approved ? '' : 'Opz. '}IMD – ${client}${q.type ? ` (${q.type})` : ''}`,
+    summary: `${approved ? '' : 'Opz. '}${['IMD', q.type, client].filter(Boolean).join(' ')}${venue ? ` - ${venue}` : ''}`,
     location,
     description,
     ...timing,
@@ -693,6 +695,7 @@ Apply it with `supabase db push`, or paste it into the SQL Editor.
 Notes:
 - `pg_net` sends the request **after the transaction commits**, so the function always reads saved data.
 - New pending quotes are synced too, so while someone edits one, autosave triggers a sync when event-related fields change. Existing quotes and groups are ignored.
+- The watched fields are listed in `quote_calendar_fields`. The migration `supabase/migrations/20261124224800_calendar_event_fields.sql` redefines it to also include the frontman and the musician list (`formazione`). If you change what goes into the event, add the field there too, or edits to it won't trigger a sync.
 
 ### 7c. Approve in a single transaction
 

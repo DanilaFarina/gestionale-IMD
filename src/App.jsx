@@ -790,6 +790,8 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
     momenti: [{ titolo: '', descrizione: '', numPause: '', minutiPausa: '', inizio: '', fine: '' }],
     numMusicisti: 3,
     cachetMusicista: 200,
+    nomeFrontman: '',
+    formazione: [],
     costoCerimonia: 0,
     costoExtra: 0,
     numImpianti: 1,
@@ -885,6 +887,21 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
       ...prev,
       momenti: prev.momenti.map((m, i) => i === index ? { ...m, [field]: value } : m)
     }));
+  };
+
+  const handleAddMusicista = () => {
+    setFormData(prev => ({ ...prev, formazione: [...(prev.formazione || []), { nome: '', strumento: '' }] }));
+  };
+
+  const handleMusicistaField = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      formazione: (prev.formazione || []).map((m, i) => i === index ? { ...m, [field]: value } : m)
+    }));
+  };
+
+  const handleRemoveMusicista = (index) => {
+    setFormData(prev => ({ ...prev, formazione: (prev.formazione || []).filter((_, i) => i !== index) }));
   };
 
   // Auto-fetch prezzo benzina dal MIMIT
@@ -1540,6 +1557,32 @@ function QuoteForm({ onCancel, onSave, onAutosave, initialData, isTemplate = fal
                       ))}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Formazione: compare nell'evento di Google Calendar, non nel PDF ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2">
+                  <Music size={16} className="text-slate-500" /> Formazione
+                </h3>
+                <span className="text-xs text-slate-500">Solo per il calendario, non compare nel PDF</span>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Frontman</label>
+                  <input type="text" name="nomeFrontman" value={formData.nomeFrontman || ''} onChange={handleChange} placeholder="es. Giovanni" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+                <div className="space-y-2">
+                  {(formData.formazione || []).map((m, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                      <input type="text" value={m.nome || ''} onChange={e => handleMusicistaField(i, 'nome', e.target.value)} placeholder="Nome musicista" className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500" />
+                      <input type="text" value={m.strumento || ''} onChange={e => handleMusicistaField(i, 'strumento', e.target.value)} placeholder="Strumento" className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500" />
+                      <button type="button" onClick={() => handleRemoveMusicista(i)} title="Rimuovi musicista" className="p-2 text-red-600 hover:bg-red-100 rounded-lg"><XCircle size={18} /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={handleAddMusicista} className="flex items-center gap-2 px-3 py-2 bg-white border border-dashed border-slate-400 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium"><Plus size={16} /> Aggiungi musicista</button>
                 </div>
               </div>
             </div>
@@ -3470,7 +3513,7 @@ function ContractForm({ quote, onBack, onSave }) {
     numeroMusicisti: fd.numMusicisti || '',
     numeroImpianti: fd.numImpianti ?? 0,
     numeroPasti: fd.numPasti || '',
-    nomeFrontman: '', // nome del frontman della band
+    nomeFrontman: fd.nomeFrontman || '', // nome del frontman della band (precompilato dal preventivo)
     // Inclusioni / esclusioni precompilate dal preventivo approvato
     ...getContractOptionDefaults(fd),
     inclusoAltro: '', // testo delle inclusioni personalizzate
