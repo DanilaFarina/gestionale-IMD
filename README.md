@@ -26,8 +26,7 @@ Setup una tantum:
    supabase db push
    supabase secrets set GOOGLE_CALENDAR_ID="<id calendario di test>" \
      CALENDAR_SYNC_SECRET="<segreto>" \
-     GOOGLE_SERVICE_ACCOUNT_B64="$(base64 -i <chiave>.json)" \
-     APP_URL="https://danilafarina.github.io/gestionale-IMD-staging/"
+     GOOGLE_SERVICE_ACCOUNT_B64="$(base64 -i <chiave>.json)"
    supabase functions deploy sync-calendar --no-verify-jwt
    ```
    Poi nel SQL Editor di staging crea i secret del Vault (URL della funzione di staging e lo stesso segreto), come al punto 7a di [GOOGLE_CALENDAR_SETUP.md](GOOGLE_CALENDAR_SETUP.md). Il calendario di test va condiviso con il service account.
